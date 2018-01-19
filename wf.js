@@ -1,8 +1,6 @@
 window.$ = window.jQuery = require('./jquery.min.js');
 window.XLSX = require('./node_modules/xlsx/dist/xlsx.full.min.js')
-window.xlsx = require('./node_modules/xlsx/dist/xlsx.js')
-// require('./Blob.js');
-// require('./FileSaver.js');
+
 require('./conf.js');
 const readline = require('readline')
 
@@ -22,18 +20,25 @@ var filesForRead = loopDirGetFilename('原始数据/', [])
 var filesForWrite = filesForRead.concat([])
 
 redisClient.flushall((err, result) => {
+    if (err) {
+        console.log('redis flush all err!')
+        return console.log(err)
+    }
     console.log('flushall:' + result)
-    fsToRedis()
+    setTimeout(function () {
+        fsToRedis()
+    }, 1000);
 })
 
 var lonlatCount = 0
 function fsToRedis() {
     if (!filesForRead || filesForRead.length <= 0) {
-        //5秒缓冲,让所有数据写入redis
-        setTimeout(function () {
+        //3秒缓冲,让所有数据写入redis
+        return setTimeout(function () {
+            console.log('所有经纬度写入redis!')
+            console.log(`共${lonlatCount}条数据待解析,预计需要${lonlatCount * 14 / 60000}分钟`)
             detailAddressInRedis()
-        }, 5000)
-        return console.log('所有经纬度写入redis!')
+        }, 3000)
     }
     var readFileName = filesForRead.shift()
     console.log('经纬度写入redis开始:' + readFileName)
@@ -41,10 +46,12 @@ function fsToRedis() {
         input: fs.createReadStream(readFileName)
     })
         .on('line', (line) => {
-            var lonlat = /[\d.]*,[\d.]*$/.exec(line)
-            if (!lonlat) return
+            var lonlat = /[\d.]*\s*,[\d.]*\s*$/.exec(line)
 
-            lonlat = lonlat.toString()
+            //console.log(!!lonlat)
+            if (!lonlat) return //console.log(line)
+
+            lonlat = lonlat.toString().replace(/\s/g, '')
             if (lonlat == lastLonlat) return //console.log('cache hit')
 
             lastLonlat = lonlat
@@ -61,7 +68,7 @@ function detailAddressInRedis() {
     if (tag > lonlatCount) {
         setTimeout(function () {
             beginWrite()
-        }, 5000);
+        }, 3000);
         return console.log('read all lonlat from redis')
     }
     redisClient.get(tag++, (err, lonlat) => {
@@ -72,23 +79,24 @@ function detailAddressInRedis() {
 
         }
 
-        getPositons(lonlat, (originData) => {
-            var key = 'key_' + lonlat
-            var detailAddress = getDetailAddressByOriginData(originData)
-            redisClient.set(key, detailAddress, (err, result) => {
-                if (err) {
-                    console.log('redis set err')
-                    console.log(err)
-                }
-                //console.log('set success:' + key + detailAddress)
-            })
-            redisClient.expire(key, 86400, (err, result) => {
-                if (err) {
-                    console.log('redis expire err')
-                    console.log(err)
-                }
-            })
+        getPositons(lonlat, setPositionInRedis)
+    })
+}
+
+function setPositionInRedis(lonlat, position) {
+    var key = 'key_' + lonlat
+    redisClient.set(key, position, (err, result) => {
+        if (err) {
+            console.log('redis set err')
+            console.log(err)
+        }
+        redisClient.expire(key, 86400, (err, result) => {
+            if (err) {
+                console.log('redis expire err')
+                console.log(err)
+            }
         })
+        //console.log('set success:' + key + position)
     })
 }
 
@@ -113,10 +121,10 @@ function beginWrite() {
                 fWrite.write(new Buffer('\xEF\xBB\xBF', 'binary'));//add utf-8 bom
                 fWrite.write(line + ',程序解析详细地址\n')
             } else {
-                var lonlat = /[\d.]*,[\d.]*$/.exec(line)
+                var lonlat = /[\d.]*\s*,[\d.]*\s*$/.exec(line)
                 if (!lonlat) return
 
-                var key = 'key_' + lonlat.toString()
+                var key = 'key_' + lonlat.toString().replace(/\s/g, '')
                 redisClient.exists(key, (err, exists) => {
                     if (!exists) {
                         console.log('严重错误! 未从缓存读到数据' + key + ' ' + readFileName)
@@ -153,7 +161,7 @@ function getPositons(lonLats, callback) {
     }
     $.get({
         type: "get",
-        url: `${conf.mapUrl}/rgeocode/simple?resType=json&encode=utf-8&range=300&roadnum=3&crossnum=2&poinum=2&retvalue=1&key=55dc8b4eed5d8d2a32060fb80d26bf7310a6e4177224f997fc148baa0b7f81c1eda6fcc3fd003db0&sid=7001&region=${lonLats}&rid=967188`,
+        url: `${conf.mapUrl}rgeocode/simple?resType=json&encode=utf-8&range=300&roadnum=3&crossnum=2&poinum=2&retvalue=1&key=55dc8b4eed5d8d2a32060fb80d26bf7310a6e4177224f997fc148baa0b7f81c1eda6fcc3fd003db0&sid=7001&region=${lonLats}&rid=967188`,
         //async: false,
         success: function (data) {
             getRequestCounter--
@@ -161,7 +169,8 @@ function getPositons(lonLats, callback) {
                 detailAddressInRedis()
             }
             //console.log(getRequestCounter)
-            callback(data)
+            var detailAddress = getDetailAddressByOriginData(data)
+            callback(lonLats, detailAddress)
         },
         error: () => {
             getPositons(lonLats, callback)
@@ -219,10 +228,15 @@ function JsonObjToExcel(mapData2, filename) {
 }
 
 function getDetailAddressByOriginData(originData) {
-    if (!originData) return ''
-    var mapData = originData.split("=")
-    if (mapData.length < 2) return ''
-    var data = JSON.parse(mapData[1]).list
+    if (!originData)
+        return ''
+    let mapData = originData.split("=")
+    if (mapData.length < 2)
+        return ''
+    let jsonObj = JSON.parse(mapData[1])
+    if (!jsonObj || !jsonObj.list)
+        return ''
+    var data = jsonObj.list
         .map(address => {
             var result = address.province.name + address.city.name + address.district.name
             if (address.poilist.length > 0) {

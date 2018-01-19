@@ -23,6 +23,7 @@
     "xlsx": "^0.11.7"
   },
   "dependencies": {
-    "csvtojson": "^1.1.9"
+    "csvtojson": "^1.1.9",
+    "redis": "^2.8.0"
   }
 }
