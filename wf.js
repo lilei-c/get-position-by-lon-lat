@@ -1,5 +1,7 @@
+const memeye = require('memeye');
+memeye();
+
 window.$ = window.jQuery = require('./jquery.min.js');
-window.XLSX = require('./node_modules/xlsx/dist/xlsx.full.min.js')
 
 require('./conf.js');
 const readline = require('readline')
@@ -9,7 +11,7 @@ var redisClient = require('redis').createClient()
 
 //这两个变量的作用并不符合预期
 var getRequestCounter = 0
-var getRequestMax = 4
+var getRequestMax = 15
 //
 var lastLonlat = ''
 
@@ -33,11 +35,11 @@ redisClient.flushall((err, result) => {
 var lonlatCount = 0
 function fsToRedis() {
     if (!filesForRead || filesForRead.length <= 0) {
+        console.log('所有经纬度写入redis!')
+        console.log(`共${lonlatCount}条数据待解析,预计需要${lonlatCount * 14 / 60000}分钟`)
         //3秒缓冲,让所有数据写入redis
         return setTimeout(function () {
-            console.log('所有经纬度写入redis!')
-            console.log(`共${lonlatCount}条数据待解析,预计需要${lonlatCount * 14 / 60000}分钟`)
-            detailAddressInRedis()
+            check()
         }, 3000)
     }
     var readFileName = filesForRead.shift()
@@ -65,39 +67,31 @@ function fsToRedis() {
 
 var tag = 1
 function detailAddressInRedis() {
-    if (tag > lonlatCount) {
-        setTimeout(function () {
-            beginWrite()
-        }, 3000);
-        return console.log('read all lonlat from redis')
-    }
-    redisClient.get(tag++, (err, lonlat) => {
-        if (!lonlat)
-            return alert('error')
-
-        if (onetimeGetLonlats.length > 0) {
-
+    redisClient.get(tag++, function (err, lonlat) {
+        if (err || !lonlat) {
+            console.log('严重错误! 从redis读取经纬度失败')
+            return console.log(err)
         }
-
-        getPositons(lonlat, setPositionInRedis)
+        console.log(`${tag}/${lonlatCount}  ${getRequestCounter}`)
+        getRequestCounter++
+        getPositons(lonlat)
+        //console.log('当前请求数:' + getRequestCounter)
     })
 }
 
-function setPositionInRedis(lonlat, position) {
-    var key = 'key_' + lonlat
-    redisClient.set(key, position, (err, result) => {
-        if (err) {
-            console.log('redis set err')
-            console.log(err)
+function check() {
+    var iii = setInterval(function () {
+        if (tag > lonlatCount) {
+            clearInterval(iii)
+            setTimeout(function () {
+                beginWrite()
+            }, 3000);
+            return console.log('read all lonlat from redis')
         }
-        redisClient.expire(key, 86400, (err, result) => {
-            if (err) {
-                console.log('redis expire err')
-                console.log(err)
-            }
-        })
-        //console.log('set success:' + key + position)
-    })
+        if (getRequestCounter <= getRequestMax) {
+            detailAddressInRedis()
+        }
+    }, 20);
 }
 
 function beginWrite() {
@@ -153,29 +147,17 @@ function beginWrite() {
         })
 }
 
-function getPositons(lonLats, callback) {
-    getRequestCounter++
-    if (getRequestCounter <= getRequestMax) {
-        detailAddressInRedis()
-        //console.log(getRequestCounter)
-    }
-    $.get({
-        type: "get",
-        url: `${conf.mapUrl}rgeocode/simple?resType=json&encode=utf-8&range=300&roadnum=3&crossnum=2&poinum=2&retvalue=1&key=55dc8b4eed5d8d2a32060fb80d26bf7310a6e4177224f997fc148baa0b7f81c1eda6fcc3fd003db0&sid=7001&region=${lonLats}&rid=967188`,
-        //async: false,
-        success: function (data) {
+var request = require('request');
+function getPositons(lonLats) {
+    var url = `${conf.mapUrl}rgeocode/simple?resType=json&encode=utf-8&range=300&roadnum=3&crossnum=2&poinum=2&retvalue=1&key=55dc8b4eed5d8d2a32060fb80d26bf7310a6e4177224f997fc148baa0b7f81c1eda6fcc3fd003db0&sid=7001&region=${lonLats}&rid=967188`
+    request.get(url)
+        .on('error', function (err) {
+            console.log(err)
+            getPositons(lonLats)
+        }).on('response', function (response, data) {
             getRequestCounter--
-            if (getRequestCounter <= getRequestMax) {
-                detailAddressInRedis()
-            }
-            //console.log(getRequestCounter)
-            var detailAddress = getDetailAddressByOriginData(data)
-            callback(lonLats, detailAddress)
-        },
-        error: () => {
-            getPositons(lonLats, callback)
-        }
-    })
+            redisClient.set('key_' + lonLats, getDetailAddressByOriginData(data))
+        })
 }
 
 // 打印内存占用情况
@@ -186,7 +168,11 @@ function printMemoryUsage() {
 function mb(v) {
     return (v / 1024 / 1024).toFixed(2) + 'MB';
 }
-setInterval(printMemoryUsage, 10000)
+//setInterval(printMemoryUsage, 3000)
+
+
+
+// window.XLSX = require('./node_modules/xlsx/dist/xlsx.full.min.js')
 
 function GetJsonObjByExcel(filename) {
     var workbook = XLSX.readFile(filename)
