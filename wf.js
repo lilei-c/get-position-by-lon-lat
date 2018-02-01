@@ -9,7 +9,6 @@ const readline = require('readline')
 var fs = require('fs');
 var redisClient = require('redis').createClient()
 
-//这两个变量的作用并不符合预期
 var getRequestCounter = 0
 var getRequestMax = 15
 //
@@ -65,9 +64,9 @@ function fsToRedis() {
         })
 }
 
-var tag = 1
+var tag = 0
 function detailAddressInRedis() {
-    redisClient.get(tag++, function (err, lonlat) {
+    redisClient.get(++tag, function (err, lonlat) {
         if (err || !lonlat) {
             console.log('严重错误! 从redis读取经纬度失败')
             return console.log(err)
@@ -168,7 +167,7 @@ function printMemoryUsage() {
 function mb(v) {
     return (v / 1024 / 1024).toFixed(2) + 'MB';
 }
-//setInterval(printMemoryUsage, 3000)
+setInterval(printMemoryUsage, 3000)
 
 
 
