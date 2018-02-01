@@ -24,7 +24,6 @@ redisClient.flushall((err, result) => {
 })
 
 var lonlatCount = 0
-var aaa = 0
 function fsToRedis() {
     if (!filesForRead || filesForRead.length <= 0) {
         console.log('所有经纬度写入redis!')
@@ -48,7 +47,6 @@ function fsToRedis() {
 
             lastLonlat = lonlat
             redisClient.set(++lonlatCount, lonlat, function () {
-                console.log(++aaa)
             })
         })
         .on('close', () => {
