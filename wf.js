@@ -63,12 +63,16 @@ function detailAddressInRedis() {
             console.log('严重错误! 从redis读取经纬度失败')
             return console.log(err)
         }
-        console.log(`${tag}/${lonlatCount}  ${getRequestCounter}`)
+        //console.log(`${tag}/${lonlatCount}  ${getRequestCounter}`)
         getRequestCounter++
         getPositons(lonlat)
         //console.log('当前请求数:' + getRequestCounter)
     })
 }
+
+setInterval(function () {
+    console.log(`${tag}/${lonlatCount}  ${getRequestCounter}`)
+}, 10000)
 
 function check() {
     var iii = setInterval(function () {
@@ -132,7 +136,7 @@ function getPositons(lonLats) {
     var url = `${conf.mapUrl}rgeocode/simple?resType=json&encode=utf-8&range=300&roadnum=3&crossnum=2&poinum=2&retvalue=1&key=55dc8b4eed5d8d2a32060fb80d26bf7310a6e4177224f997fc148baa0b7f81c1eda6fcc3fd003db0&sid=7001&region=${lonLats}&rid=967188`
     request(url, function (error, response, body) {
         if (error) {
-            console.log(err)
+            console.log(error)
             getPositons(lonLats)
         }
         else if (response && response.statusCode == 200) {
