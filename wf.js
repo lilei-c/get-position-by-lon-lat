@@ -1,7 +1,4 @@
-const memeye = require('memeye')();
-//memeye();
-
-window.$ = window.jQuery = require('./jquery.min.js');
+//require('memeye')();
 
 require('./conf.js');
 const readline = require('readline')
@@ -14,24 +11,20 @@ var getRequestMax = 15
 //
 var lastLonlat = ''
 
-var onetimeGetLonlatsSize = 100
-var onetimeGetLonlats = []
-
 var filesForRead = loopDirGetFilename('原始数据/', [])
 var filesForWrite = filesForRead.concat([])
 
 redisClient.flushall((err, result) => {
-    if (err) {
+    if (err || result != 'OK') {
         console.log('redis flush all err!')
         return console.log(err)
     }
-    console.log('flushall:' + result)
-    setTimeout(function () {
-        fsToRedis()
-    }, 1000);
+    console.log('flushall')
+    fsToRedis()
 })
 
 var lonlatCount = 0
+var aaa = 0
 function fsToRedis() {
     if (!filesForRead || filesForRead.length <= 0) {
         console.log('所有经纬度写入redis!')
@@ -47,16 +40,16 @@ function fsToRedis() {
         input: fs.createReadStream(readFileName)
     })
         .on('line', (line) => {
-            var lonlat = /[\d.]*\s*,[\d.]*\s*$/.exec(line)
-
-            //console.log(!!lonlat)
+            var lonlat = /[\d.]*\s*,[\d.]*\s*$/.exec(line)//console.log(!!lonlat)
             if (!lonlat) return //console.log(line)
 
             lonlat = lonlat.toString().replace(/\s/g, '')
             if (lonlat == lastLonlat) return //console.log('cache hit')
 
             lastLonlat = lonlat
-            redisClient.set(++lonlatCount, lonlat)
+            redisClient.set(++lonlatCount, lonlat, function () {
+                console.log(++aaa)
+            })
         })
         .on('close', () => {
             console.log('经纬度写入redis结束:' + readFileName)
@@ -83,10 +76,10 @@ function check() {
     var iii = setInterval(function () {
         if (tag >= lonlatCount) {
             clearInterval(iii)
-            setTimeout(function () {
+            console.log('read all lonlat from redis')
+            return setTimeout(function () {
                 beginWrite()
             }, 3000);
-            return console.log('read all lonlat from redis')
         }
         if (getRequestCounter <= getRequestMax) {
             detailAddressInRedis()
@@ -110,28 +103,21 @@ function beginWrite() {
         input: fs.createReadStream(readFileName)
     })
         .on('line', (line) => {
-            currentLine += 1
-            if (currentLine == 1) {
+            if (++currentLine == 1) {
                 fWrite.write(new Buffer('\xEF\xBB\xBF', 'binary'));//add utf-8 bom
                 fWrite.write(line + ',程序解析详细地址\n')
-            } else {
-                var lonlat = /[\d.]*\s*,[\d.]*\s*$/.exec(line)
-                if (!lonlat) return
-
-                var key = 'key_' + lonlat.toString().replace(/\s/g, '')
-                redisClient.exists(key, (err, exists) => {
-                    if (!exists) {
-                        console.log('严重错误! 未从缓存读到数据' + key + ' ' + readFileName)
-                        console.log('key:' + key)
-                        console.log('readFileName:' + readFileName)
-                        console.log('line:' + line)
-                        return
-                    }
-                    redisClient.get(key, (err, value) => {
-                        fWrite.write(line + ',' + value + '\n')
-                    })
-                })
+                return
             }
+            var lonlat = /[\d.]*\s*,[\d.]*\s*$/.exec(line)
+            if (!lonlat) return
+
+            var key = 'key_' + lonlat.toString().replace(/\s/g, '')
+            redisClient.get(key, function (err, value) {
+                if (err || (!value && value != ''))
+                    console.log(`严重错误! 未从缓存读到数据 key:${key} readFileName:${readFileName} currentLine:${currentLine} line:${line} `)
+                else
+                    fWrite.write(line + ',' + value + '\n')
+            })
         })
         .on('close', () => {
             setTimeout(function () {
@@ -140,10 +126,6 @@ function beginWrite() {
                     beginWrite()
                 })
             }, 3000);
-        })
-        .on('pause', () => {
-        })
-        .on('resume', () => {
         })
 }
 
@@ -165,12 +147,12 @@ function getPositons(lonLats) {
 // 打印内存占用情况
 function printMemoryUsage() {
     var info = process.memoryUsage()
-    $('#memoryusage').html(`rss=${mb(info.rss)}, heapTotal=${mb(info.heapTotal)}, heapUsed=${mb(info.heapUsed)}<br/>`)
+    document.getElementById('memoryusage').innerHTML = `rss=${mb(info.rss)}, heapTotal=${mb(info.heapTotal)}, heapUsed=${mb(info.heapUsed)}<br/>`
 }
 function mb(v) {
     return (v / 1024 / 1024).toFixed(2) + 'MB';
 }
-setInterval(printMemoryUsage, 3000)
+setInterval(printMemoryUsage, 2000)
 
 // window.XLSX = require('./node_modules/xlsx/dist/xlsx.full.min.js')
 
@@ -192,7 +174,7 @@ function JsonObjToExcel(mapData2, filename) {
     Promise.all(functions).then(result => {
         result = result.map(m => {
             var fenzuObj = m[0]
-            var fenzuAddress = $.parseJSON(m[1].split("=")[1]).list
+            var fenzuAddress = JSON.parse(m[1].split("=")[1]).list
             for (var i = 0; i < m[0].length; i++) {
                 var address = fenzuAddress[i]
                 m[0][i]['详细地址'] = address.province.name + address.city.name + address.district.name
@@ -239,19 +221,6 @@ function getDetailAddressByOriginData(originData) {
 
 // var testOriginData = 'MMap.MAjaxResult[967188]={"time":"0.056","count":"2","status":"E0","list":[{"crosslist":[{"distance":"266.693","direction":"East","road1":{"id":"0731H49F0460402039","level":"42000","width":"12","name":"麓云路","ename":"Luyun Road"},"road2":{"id":"桐梓坡西路","level":"44000","width":"16","name":"桐梓坡西路","ename":"Tongzipo West Road"},"y":"28.22004806","x":"112.8815617"}],"poilist":[{"distance":"62.8539","typecode":"170200","pguid":"B02DB05L4H","address":"桐梓坡西路223号","direction":"North","tel":"","name":"长缆电缆附件有限公司","type":"公司企业;公司;公司","y":"28.220331","x":"112.878706"},{"distance":"260.528","typecode":"120302","pguid":"B02DB0TTOH","address":"中联重科斜对面","direction":"NorthWest","tel":"","name":"保利·麓谷林语","type":"商务住宅;住宅区;住宅小区","y":"28.22126","x":"112.876794"}],"province":{"name":"湖南省","ename":"Hunan Province","code":"430000"},"roadlist":[{"id":"桐梓坡西路","distance":"74.0351","level":"44000","direction":"North","width":"16","name":"桐梓坡西路","ename":"Tongzipo West Road","y":"28.2204","x":"112.879"},{"id":"麓云路","distance":"256.98","level":"42000","direction":"East","width":"12","name":"麓云路","ename":"Luyun Road","y":"28.2195","x":"112.881"}],"type":"list","district":{"name":"岳麓区","ename":"Yuelu District","code":"430104"},"near_districts":"","city":{"citycode":"0731","tel":"0731","name":"长沙市","ename":"Changsha City","code":"430100"}},{"crosslist":[{"distance":"266.693","direction":"East","road1":{"id":"0731H49F0460402039","level":"42000","width":"12","name":"麓云路","ename":"Luyun Road"},"road2":{"id":"桐梓坡西路","level":"44000","width":"16","name":"桐梓坡西路","ename":"Tongzipo West Road"},"y":"28.22004806","x":"112.8815617"}],"poilist":[{"distance":"62.8539","typecode":"170200","pguid":"B02DB05L4H","address":"桐梓坡西路223号","direction":"North","tel":"","name":"长缆电缆附件有限公司","type":"公司企业;公司;公司","y":"28.220331","x":"112.878706"},{"distance":"260.528","typecode":"120302","pguid":"B02DB0TTOH","address":"中联重科斜对面","direction":"NorthWest","tel":"","name":"保利·麓谷林语","type":"商务住宅;住宅区;住宅小区","y":"28.22126","x":"112.876794"}],"province":{"name":"湖南省","ename":"Hunan Province","code":"430000"},"roadlist":[{"id":"桐梓坡西路","distance":"74.0351","level":"44000","direction":"North","width":"16","name":"桐梓坡西路","ename":"Tongzipo West Road","y":"28.2204","x":"112.879"},{"id":"麓云路","distance":"256.98","level":"42000","direction":"East","width":"12","name":"麓云路","ename":"Luyun Road","y":"28.2195","x":"112.881"}],"type":"list","district":{"name":"岳麓区","ename":"Yuelu District","code":"430104"},"near_districts":"","city":{"citycode":"0731","tel":"0731","name":"长沙市","ename":"Changsha City","code":"430100"}}],"type":"list","version":"v2.0.0"}'
 // console.log(getDetailAddressByOriginData(testOriginData))
-
-function getData(fenzu) {
-    return new Promise((s, f) => {
-        $.get(`${conf.mapUrl}/rgeocode/simple?resType=json
-                      &encode=utf-8&range=300&roadnum=3&crossnum=2&poinum=2&retvalue=1
-                      &key=55dc8b4eed5d8d2a32060fb80d26bf7310a6e4177224f997fc148baa0b7f81c1eda6fcc3fd003db0
-                      &sid=7001&region=${fenzu.map(k => { return `${k['经度']},${k['纬度']}` }).join(',')}&rid=967188`,
-            result => {
-                s([fenzu, result])
-            }
-        )
-    })
-}
 
 function directionstr(oldstr) {
     switch (oldstr.toLowerCase()) {
