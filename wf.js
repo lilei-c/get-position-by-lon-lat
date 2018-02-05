@@ -1,5 +1,3 @@
-//require('memeye')();
-
 require('./conf.js');
 const readline = require('readline')
 
@@ -14,24 +12,39 @@ var lastLonlat = ''
 var filesForRead = loopDirGetFilename('原始数据/', [])
 var filesForWrite = [...filesForRead]
 
-redisClient.flushall((err, result) => {
-    if (err || result != 'OK') {
-        console.log('redis flush all err!')
-        return console.log(err)
-    }
-    console.log('flushall')
+start()
+async function start() {
+    //
+    if (!await flashRedis())
+        return console.log('redis flush all err!')
+    console.log('flush all')
+
     fsToRedis()
-})
+}
+
+function flashRedis() {
+    return new Promise((s, f) => {
+        redisClient.flushall((err, result) => {
+            if (!err && result == 'OK')
+                s(true)
+            else
+                s(false)
+        })
+    })
+}
 
 var lonlatCount = 0
+var lonlatCount_Copy = 0
 function fsToRedis() {
     if (!filesForRead || filesForRead.length <= 0) {
-        console.log('所有经纬度写入redis!')
-        console.log(`共${lonlatCount}条数据待解析,预计需要${lonlatCount * 14 / 60000}分钟`)
-        //3秒缓冲,让所有数据写入redis
-        return setTimeout(function () {
-            check()
-        }, 3000)
+        var iii = setInterval(() => {
+            if (lonlatCount_Copy == lonlatCount) {
+                clearInterval(iii)
+                console.log(`所有经纬度写入redis! 共${lonlatCount}条数据待解析,预计需要${lonlatCount * 14 / 60000}分钟`)
+                check()
+            }
+        }, 20)
+        return
     }
     var readFileName = filesForRead.shift()
     console.log('经纬度写入redis开始:' + readFileName)
@@ -46,8 +59,7 @@ function fsToRedis() {
             if (lonlat == lastLonlat) return //console.log('cache hit')
 
             lastLonlat = lonlat
-            redisClient.set(++lonlatCount, lonlat, function () {
-            })
+            redisClient.set(++lonlatCount, lonlat, () => { ++lonlatCount_Copy })
         })
         .on('close', () => {
             console.log('经纬度写入redis结束:' + readFileName)
@@ -72,7 +84,7 @@ function detailAddressInRedis() {
 
 setInterval(function () {
     console.log(`${tag}/${lonlatCount}  ${getRequestCounter}`)
-}, 10000)
+}, 5000)
 
 function check() {
     var iii = setInterval(function () {
