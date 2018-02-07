@@ -12,10 +12,10 @@ async function start() {
         return console.log('redis flush all err!')
     console.log('flush all')
 
-    //读取所有文件
+    //获取所有文件名
     let files = loopDirGetFilename('原始数据/', [])
 
-    //待解析经纬度总记录
+    //经纬度存入缓存,返回待解析经纬度总记录
     let lonlatCount = await filesToRedis(files)
 
     //解析经纬度
@@ -24,19 +24,6 @@ async function start() {
     //详细地址写入文件
     await writeFiles(files)
     console.log('end')
-}
-
-function flashRedis() {
-    return new Promise((resolve, reject) => {
-        redisClient.flushall((err, result) => {
-            if (!err && result == 'OK') {
-                resolve(true)
-            }
-            else {
-                resolve(false)
-            }
-        })
-    })
 }
 
 var lonlatCount_Copy = 0
@@ -242,6 +229,19 @@ function mb(v) {
 setInterval(printMemoryUsage, 2000)
 
 //-----------通用方法------------
+
+function flashRedis() {
+    return new Promise((resolve, reject) => {
+        redisClient.flushall((err, result) => {
+            if (!err && result == 'OK') {
+                resolve(true)
+            }
+            else {
+                resolve(false)
+            }
+        })
+    })
+}
 
 function loopDirGetFilename(theDirPath, getfiles) {
     var files = fs.readdirSync(theDirPath)
