@@ -3,9 +3,12 @@ require('./conf.js')
 const readline = require('readline')
 const fs = require('fs');
 const redisClient = require('redis').createClient()
+window.XLSX = require('./node_modules/xlsx/dist/xlsx.full.min.js')
 
-start()
+document.getElementById('lonlat-btn').onclick = start
 async function start() {
+    $('#lonlat-btn').onclick = '';
+
     console.log('start')
     //清空缓存
     if (!await flashRedis())
@@ -21,8 +24,11 @@ async function start() {
     //解析经纬度
     await check(lonlatCount)
 
+    setTimeout(function() {
+         writeFiles(files)
+    }, 2000);
     //详细地址写入文件
-    await writeFiles(files)
+    
     console.log('end')
 }
 
@@ -293,8 +299,6 @@ function doTheJobByFilename(filename) {
     }
 }
 
-// window.XLSX = require('./node_modules/xlsx/dist/xlsx.full.min.js')
-
 function GetJsonObjByExcel(filename) {
     var workbook = XLSX.readFile(filename)
     var jsonObj = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]])
@@ -348,12 +352,13 @@ function saveJsonAsExcel(jsonObjs, excelName) {
     let colObj = {}
     jsonObjs.forEach(m => {
         for (let property in m) {
-            if (!colObj[property])
+            if (!colObj[property] || !m[property].replace)
                 colObj[property] = property.replace(/[\u0391-\uFFE5]/g, "aa").length
         }
 
         for (let property in m) {
-            let charLength = m[property].replace(/[\u0391-\uFFE5]/g, "aa").length
+            if (!m[property]) continue
+            let charLength = m[property].toString().replace(/[\u0391-\uFFE5]/g, "aa").length
             if (charLength > colObj[property])
                 colObj[property] = charLength
         }
@@ -370,14 +375,233 @@ function saveJsonAsExcel(jsonObjs, excelName) {
     wb.Sheets[ws_name] = ws;
 
     //路径
-    excelName = excelName.replace('原始数据', '解析结果')
-    createDirByFilename(excelName)
-
+    //excelName = '轨迹解析' + excelName
+    //createDirByFilenamecreateDirByFilename(excelName)
 
     //文件名
     var excelNameArr = excelName.split('.')
     excelNameArr[excelNameArr.length - 1] = 'xlsx'
+    excelNameArr[excelNameArr.length - 2] += '_解析结果'
     excelName = excelNameArr.join('.')
 
     XLSX.writeFile(wb, excelName);
+
+    $('.trajectory-batch-result').show()
+    $('.trajectory-batch-result.path').html(excelName)
+    document.getElementById('trajectory-batch').ondrop = drop
+}
+
+document.getElementById('trajectory-btn').onclick = trajectory_btn_click
+
+async function trajectory_btn_click() {
+    $('#trajectory-result').html('')
+    let data = $('#trajectory-content').val().trim()
+    if (!data || data.length < 40)
+        return alert('原始数据长度小于40')
+    let result = await trajectoryDataDecode(data)
+    if (!result)
+        return alert('解析失败')
+    $('#trajectory-result').html(`
+    终端位置时间: ${result['终端位置时间']}
+    </br>导航状态: ${result['导航状态']}
+    </br>经度: ${result['经度']}
+    </br>经度: ${result['经度']}
+    </br>详细位置: ${result['详细位置']}
+    `)
+}
+
+async function trajectoryDataDecode(data) {
+    var result = {}
+    var text2 = data.substr(34, data.length - 34 - 4);
+    var value = text2.substr(0, 2);
+    var text3 = parseInt(value, 16).toString(2)
+    var value3 = text3.substr(text3.length - 6, 6);
+    var text4 = "20" + parseInt(value3, 2)
+    var value4 = text2.substr(2, 2);
+    var text5 = parseInt(value4, 16)
+    var value5 = text2.substr(4, 2);
+    var text6 = parseInt(value5, 16)
+    var value6 = text2.substr(6, 2);
+    var text7 = parseInt(value6, 16)
+    var value7 = text2.substr(8, 2);
+    var text8 = parseInt(value7, 16)
+    var value8 = text2.substr(10, 2);
+    var text9 = parseInt(value8, 16)
+
+    result['终端位置时间'] = formatDateTime(new Date(`${text4}-${text5}-${text6} ${text7}:${text8}:${text9}`).getTime() + 8 * 3600000)
+
+    let value9 = text2.substr(12, 2);
+    let value10 = text2.substr(14, 2);
+    let value11 = text2.substr(16, 2);
+    let value12 = text2.substr(18, 2);
+    let value13 = text2.substr(20, 2);
+    let value14 = text2.substr(22, 2);
+    let value15 = text2.substr(24, 2);
+    let value16 = text2.substr(26, 2);
+    let value17 = text2.substr(28, 2);
+    let value18 = text2.substr(30, 2);
+    let value19 = text2.substr(32, 2);
+    let text10 = parseInt(value19, 16).toString(2)
+    let str;
+    if (text10.substr(0, 1) == "0")
+        str = "导航";
+    else
+        str = "不导航";
+
+    result['导航状态'] = str
+
+    let num = parseInt(value9, 16);
+    let num2 = parseInt(value10, 16);
+    let num3 = parseInt(value11, 16);
+    let num4 = parseInt(value12, 16);
+    let num5 = parseInt(value13, 16);
+    let num6 = parseInt(value14, 16);
+    let num7 = parseInt(value15, 16);
+    let num8 = parseInt(value16, 16);
+    let num9 = ((num3 * 100 + num4) * 1.0 / 10000.0 + num2) / 60.0 + num;
+    let num10 = ((num7 * 100 + num8) * 1.0 / 10000.0 + num6) / 60.0 + num5;
+
+    result['经度'] = num10
+    result['纬度'] = num9
+    let xxx = await getPositonsX(num10, num9)
+    result['详细位置'] = xxx
+    return result
+}
+
+function formatDateTime(inputTime) {
+    var date = new Date(inputTime);
+    var y = date.getFullYear();
+    var m = date.getMonth() + 1;
+    m = m < 10 ? ('0' + m) : m;
+    var d = date.getDate();
+    d = d < 10 ? ('0' + d) : d;
+    var h = date.getHours();
+    h = h < 10 ? ('0' + h) : h;
+    var minute = date.getMinutes();
+    var second = date.getSeconds();
+    minute = minute < 10 ? ('0' + minute) : minute;
+    second = second < 10 ? ('0' + second) : second;
+    return y + '-' + m + '-' + d + ' ' + h + ':' + minute + ':' + second;
+}
+
+async function getPositonsX(lon, lat) {
+    return new Promise((resolve) => {
+        var url = `${conf.mapUrl}rgeocode/simple?resType=json&encode=utf-8&range=300&roadnum=3&crossnum=2&poinum=2&retvalue=1&key=55dc8b4eed5d8d2a32060fb80d26bf7310a6e4177224f997fc148baa0b7f81c1eda6fcc3fd003db0&sid=7001&region=${lon},${lat}&rid=967188`
+        require('request')(url, function (error, response, body) {
+            if (error) {
+                console.log(error)
+            }
+            else if (response && response.statusCode == 200) {
+                resolve(getDetailAddressByOriginData(body))
+            }
+        })
+    })
+}
+
+
+document.getElementById('trajectory-batch').ondrop = drop
+function drop(ev) {
+    document.getElementById('trajectory-batch').ondrop = dropFake
+    ev.preventDefault();
+    var fileObj = ev.dataTransfer.files[0];
+    console.log(fileObj)
+
+    //
+    $('.trajectory-batch-rate').show()
+    $('#trajectory-batch-rate-show1').attr('style', `width:0%`)
+    $('#trajectory-batch-rate-show2').html('')
+    //
+    $('.trajectory-batch-result').hide()
+    $('.trajectory-batch-result.path').html('')
+
+    fileToRedisX(fileObj.path)
+}
+function dropFake(ev) {
+    ev.preventDefault();
+}
+
+async function fileToRedisX(readFileName) {
+    var aaa = GetJsonObjByExcel(readFileName)
+    //
+    var bbb = [];
+    for (var i = 0; i < aaa.length; i++) {
+        aaa[i]['终端位置时间'] = ''
+        aaa[i]['导航状态'] = ''
+        aaa[i]['经度'] = ''
+        aaa[i]['纬度'] = ''
+        aaa[i]['详细位置'] = ''
+        if (aaa[i]['指令类型'] == '定时位置信息1.2版' && aaa[i]['数据方向'] == 'GPRS上行' && aaa[i]['内容'].length >= 40)
+            bbb.push(aaa[i])
+    }
+
+    let total = bbb.length
+
+    for (var i = 0; i < bbb.length; i++) {
+        var text = bbb[i]['内容']
+        var text2 = text.substr(34, text.length - 34 - 4);
+        var value = text2.substr(0, 2);
+        var text3 = parseInt(value, 16).toString(2)
+        var value3 = text3.substr(text3.length - 6, 6);
+        var text4 = "20" + parseInt(value3, 2)
+        var value4 = text2.substr(2, 2);
+        var text5 = parseInt(value4, 16)
+        var value5 = text2.substr(4, 2);
+        var text6 = parseInt(value5, 16)
+        var value6 = text2.substr(6, 2);
+        var text7 = parseInt(value6, 16)
+        var value7 = text2.substr(8, 2);
+        var text8 = parseInt(value7, 16)
+        var value8 = text2.substr(10, 2);
+        var text9 = parseInt(value8, 16)
+
+        bbb[i]['终端位置时间'] = formatDateTime(new Date(`${text4}-${text5}-${text6} ${text7}:${text8}:${text9}`).getTime() + 8 * 3600000)
+
+        let value9 = text2.substr(12, 2);
+        let value10 = text2.substr(14, 2);
+        let value11 = text2.substr(16, 2);
+        let value12 = text2.substr(18, 2);
+        let value13 = text2.substr(20, 2);
+        let value14 = text2.substr(22, 2);
+        let value15 = text2.substr(24, 2);
+        let value16 = text2.substr(26, 2);
+        let value17 = text2.substr(28, 2);
+        let value18 = text2.substr(30, 2);
+        let value19 = text2.substr(32, 2);
+        let text10 = parseInt(value19, 16).toString(2)
+        let str;
+        if (text10.substr(0, 1) == "0")
+            str = "导航";
+        else
+            str = "不导航";
+
+        bbb[i]['导航状态'] = str
+
+
+        let num = parseInt(value9, 16);
+        let num2 = parseInt(value10, 16);
+        let num3 = parseInt(value11, 16);
+        let num4 = parseInt(value12, 16);
+        let num5 = parseInt(value13, 16);
+        let num6 = parseInt(value14, 16);
+        let num7 = parseInt(value15, 16);
+        let num8 = parseInt(value16, 16);
+        let num9 = ((num3 * 100 + num4) * 1.0 / 10000.0 + num2) / 60.0 + num;
+        let num10 = ((num7 * 100 + num8) * 1.0 / 10000.0 + num6) / 60.0 + num5;
+
+        bbb[i]['经度'] = num10
+        bbb[i]['纬度'] = num9
+
+        console.log(i)
+        let xxx = await getPositonsX(num10, num9)
+        bbb[i]['详细位置'] = xxx
+
+        console.log(bbb[i])
+        let rate = ((i + 1) / total).toFixed(2) * 100
+        $('#trajectory-batch-rate-show1').attr('style', `width:${rate}%`)
+        $('#trajectory-batch-rate-show2').html(`${i + 1}/${total}`)
+    }
+
+    console.log(bbb)
+    console.log('待解析记录数:' + bbb.length)
+    saveJsonAsExcel(bbb, readFileName)
 }
