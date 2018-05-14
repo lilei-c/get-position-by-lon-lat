@@ -1,0 +1,71 @@
+﻿<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>位置解析小工具</title>
+  <link rel="stylesheet" href="js_css/bootstrap-3.3.7.min.css">
+</head>
+
+<body>
+  <ul id="myTab" class="nav nav-tabs">
+    <li class="active">
+      <a href="#trajectory-tab" data-toggle="tab">轨迹数据解析(单个)</a>
+    </li>
+    <li>
+      <a href="#trajectory-batch-tab" data-toggle="tab">轨迹数据解析(批量)</a>
+    </li>
+    <li class="dropdown">
+      <a href="#lonlat-tab" data-toggle="tab">经纬度解析(测试)</a>
+    </li>
+  </ul>
+  <div id="myTabContent" class="tab-content" style="margin: 4px 1em;">
+    <div class="tab-pane fade in active" id="trajectory-tab">
+      <textarea id="trajectory-content" class="form-control" rows="3" placeholder="请输入原始轨迹数据"></textarea>
+      <button class="btn btn-default" id="trajectory-btn" style="margin-top: 1em;">解析</button>
+      <p style="margin-top: 1em;">解析结果:</p>
+      <p id="trajectory-result">
+      </p>
+    </div>
+    <div class="tab-pane fade" id="trajectory-batch-tab">
+      <div id="trajectory-batch" ondrop="drop(event)" ondragover="allowDrop(event)" style="height: 260px; background-color: darkseagreen;">
+        <p style="margin-left:4px">将excel文件拖放到绿色区域开始解析, excel至少包含三列(内容/指令类型/数据方向)</p>
+        <p></p>
+        <p style="margin-left:4px">只解析符合以下条件的数据:</p>
+        <p style="margin-left:2em">1.指令类型=定时位置信息1.2版</p>
+        <p style="margin-left:2em">2.数据方向=GPRS上行</p>
+        <p style="margin-left:2em">3.内容: 长度大于40</p>
+      </div>
+      <p style="margin-top: 1em;display:none;" class="trajectory-batch-rate">解析开始, 进度:</p>
+      <div class="progress trajectory-batch-rate" style="display:none">
+        <div id="trajectory-batch-rate-show1" class="progress-bar" role="progressbar" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100"
+          style="width: 0%;">
+          <span id="trajectory-batch-rate-show2"></span>
+        </div>
+      </div>
+      <p style="margin-top: 1em;display:none;" class="trajectory-batch-result">解析完成, 文件保存位置:</p>
+      <p style="display:none;" class="trajectory-batch-result path"></p>
+    </div>
+    <div class="tab-pane fade" id="lonlat-tab">
+      <button class="btn btn-default" id="lonlat-btn" style="margin-top: 1em;">开始 </button>
+    </div>
+  </div>
+
+  <div id="memoryusage" style="position: absolute;float: right;margin-right: 0;bottom: 0;right: 0;color: grey;font-size: 0.9em;">
+  </div>
+</body>
+<script src="js_css/jquery-2.1.1.min.js"></script>
+<script>if (typeof module === 'object') { window.jQuery = window.$ = module.exports; };</script>
+<script src="js_css/bootstrap-3.3.7.min.js"></script>
+<script>
+  require('./index.js');
+
+  // You can also require other files to run in this process
+  require('./renderer.js')
+
+  function allowDrop(ev) {
+    ev.preventDefault();
+  }
+</script>
+
+</html>

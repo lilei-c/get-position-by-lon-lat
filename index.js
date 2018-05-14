@@ -2,11 +2,15 @@ require('./conf.js')
 
 const readline = require('readline')
 const fs = require('fs');
-const redisClient = require('redis').createClient()
+var redisClient;
 window.XLSX = require('./node_modules/xlsx/dist/xlsx.full.min.js')
 
 document.getElementById('lonlat-btn').onclick = start
 async function start() {
+    if (!redisClient) {
+        redisClient = require('redis').createClient()
+    }
+
     $('#lonlat-btn').onclick = '';
 
     console.log('start')
@@ -298,9 +302,14 @@ function doTheJobByFilename(filename) {
 }
 
 function GetJsonObjByExcel(filename) {
-    var workbook = XLSX.readFile(filename)
-    var jsonObj = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]])
-    return jsonObj
+    try {
+        var workbook = XLSX.readFile(filename)
+        var jsonObj = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]])
+        return jsonObj
+    }
+    catch (ex) {
+        return null;
+    }
 }
 
 function Workbook() {
@@ -483,6 +492,10 @@ function dropFake(ev) {
 
 async function decodeOriginTraceDataFromXlsx(readFileName) {
     let allRecord = GetJsonObjByExcel(readFileName)
+    if (!allRecord) {
+        document.getElementById('trajectory-batch').ondrop = drop
+        return alert('未读取到数据, 请检测文件格式/内容!')
+    }
     let toBeDecode = allRecord
         .filter(m => {
             return (m['指令类型'] == '定时位置信息1.2版'
@@ -497,8 +510,13 @@ async function decodeOriginTraceDataFromXlsx(readFileName) {
             m['详细位置'] = ''
             return m
         })
+    console.log(allRecord)
     console.log(toBeDecode)
     console.log('待解析记录数:' + toBeDecode.length)
+    if (toBeDecode.length <= 0) {
+        document.getElementById('trajectory-batch').ondrop = drop
+        return alert('未读取到数据, 请检测文件格式/内容!')
+    }
 
     for (var i = 0; i < toBeDecode.length; i++) {
         let result = await trajectoryDataDecode(toBeDecode[i]['内容'])
