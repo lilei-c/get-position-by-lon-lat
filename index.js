@@ -1,3 +1,4 @@
+﻿require('./ex.js')
 require('./conf.js')
 
 const readline = require('readline')
@@ -30,7 +31,7 @@ async function start() {
 
     setTimeout(function () {
         writeFiles(files)
-    }, 2000);
+    }, 5000);
     //详细地址写入文件
 
     console.log('end')
@@ -365,76 +366,141 @@ function saveJsonAsExcel(jsonObjs, excelName) {
 document.getElementById('trajectory-btn').onclick = trajectory_btn_click
 async function trajectory_btn_click() {
     $('#trajectory-result').html('')
-    let data = $('#trajectory-content').val().trim()
+    let data = $('#trajectory-content').val().replace(/\s/g, '')
     if (!data || data.length < 40)
         return alert('原始数据长度小于40')
-    let result = await trajectoryDataDecode(data)
+    let result = await zl_gprs_13_decode(data)
     if (!result)
         return alert('解析失败')
-    $('#trajectory-result').html(`
-    终端位置时间: ${result['终端位置时间']}
-    </br>导航状态: ${result['导航状态']}
-    </br>经度: ${result['经度']}
-    </br>经度: ${result['经度']}
-    </br>详细位置: ${result['详细位置']}
-    `)
+
+    let html = ''
+    for (var i in result) {
+        let valueColor = ''
+        if (result[i] == '报警')
+            valueColor = 'red'
+        html += `<span style="color: blue;">${i}</span> 
+        <span style="color: ${valueColor};">${result[i]}</span><br>`
+    }
+    $('#trajectory-result').html(html)
 }
 
-async function trajectoryDataDecode(data) {
-    var result = {}
-    var text2 = data.substr(34, data.length - 34 - 4);
-    var value = text2.substr(0, 2);
-    var text3 = parseInt(value, 16).toString(2)
-    var value3 = text3.substr(text3.length - 6, 6);
-    var text4 = "20" + parseInt(value3, 2)
-    var value4 = text2.substr(2, 2);
-    var text5 = parseInt(value4, 16)
-    var value5 = text2.substr(4, 2);
-    var text6 = parseInt(value5, 16)
-    var value6 = text2.substr(6, 2);
-    var text7 = parseInt(value6, 16)
-    var value7 = text2.substr(8, 2);
-    var text8 = parseInt(value7, 16)
-    var value8 = text2.substr(10, 2);
-    var text9 = parseInt(value8, 16)
+async function zl_gprs_13_decode(data) {
+    let result = {}
+    let cmdCode = data.substr(4, 2)
+    if (!~['17', '18', '28'].indexOf(cmdCode)) {
+        result['提示'] = '只解析 17,18,28 指令'
+        return result
+    }
 
-    result['终端位置时间'] = formatDateTime(new Date(`${text4}-${text5}-${text6} ${text7}:${text8}:${text9}`).getTime() + 8 * 3600000)
+    // 17 18 都带位置信息
+    let dataContentLocation = ''
+    if (cmdCode == '17')
+        dataContentLocation = data.substr(36, 40)
+    else if (cmdCode == '18')
+        dataContentLocation = data.substr(34, 40)
 
-    let value9 = text2.substr(12, 2);
-    let value10 = text2.substr(14, 2);
-    let value11 = text2.substr(16, 2);
-    let value12 = text2.substr(18, 2);
-    let value13 = text2.substr(20, 2);
-    let value14 = text2.substr(22, 2);
-    let value15 = text2.substr(24, 2);
-    let value16 = text2.substr(26, 2);
-    let value17 = text2.substr(28, 2);
-    let value18 = text2.substr(30, 2);
-    let value19 = text2.substr(32, 2);
-    let text10 = parseInt(value19, 16).toString(2)
-    let str;
-    if (text10.substr(0, 1) == "0")
-        str = "导航";
-    else
-        str = "不导航";
+    if (cmdCode == '17') {
+        let cmd17Alarm = data.substr(35, 2).toInt(10).toString(2).padStart(8, '0')
+        if (cmd17Alarm == '10101010') {//10101010=>AA AA是特殊情况 无所谓发生,解除
+            result['报警标志'] = '终端连接心跳包'
+        } else {
+            result['报警标志'] = cmd17Alarm.substr(0, 1) == '1' ? '报警发生' : '报警解除'
+            let alarmValue = ''
+            console.log(cmd17Alarm)
+            console.log(cmd17Alarm.substr(1, 7))
+            console.log(cmd17Alarm.substr(1, 7).toInt(2))
+            console.log(cmd17Alarm.substr(1, 7).toInt(2).toString(16))
+            switch (cmd17Alarm.substr(1, 7).toInt(2).toString(16)) {
+                case '1': alarmValue = 'GPS天线故障'; break
+                case '4': alarmValue = '曾自动锁车标志'; break
+                case '5': alarmValue = 'ACC/PLC上电'; break
+                case 'd': alarmValue = 'SIM卡拔卡标志'; break
+                case 'e': alarmValue = '开盖报警'; break
+                case 'f': alarmValue = 'SIM卡更换报警'; break
+                case '10': alarmValue = '总线故障报警'; break
+                case '11': alarmValue = '主电源断电报警'; break
+                case '12': alarmValue = '主电源欠压报警'; break
+                case '13': alarmValue = '备用电池断电报警'; break
+                case '14': alarmValue = '备用电源欠压报警'; break
+                case '16': alarmValue = 'CAN波特率变化'; break
+                case '17': alarmValue = '串口波特率变化'; break
+            }
+            result['报警值'] = alarmValue
+        }
+    } else if (cmdCode == '28') {
+        let cmd28content = data.substr(34, 36)
+        result['主电源电压'] = cmd28content.substr(0, 4).toInt(16).divide(10).toFixed(1) + 'V'
+        result['备用电池电压'] = cmd28content.substr(4, 2).toInt(16).divide(10).toFixed(1) + 'V'
+        result['终端内部温度'] = cmd28content.substr(6, 2).toInt(16) - 60 + '℃'
+        result['主电休眠上报间隔'] = cmd28content.substr(8, 2).toInt(16) + 'h'
+        result['备电休眠上报间隔'] = cmd28content.substr(10, 2).toInt(16) + 'h'
+        result['ACC ON总累计时间'] = cmd28content.substr(12, 8).toInt(16) + 'm'
+        result['GPS终端总通电时间'] = cmd28content.substr(20, 8).toInt(16) + 'm'
+        result['开盖次数'] = cmd28content.substr(28, 2).toInt(16)
+        result['拔GPS天线次数'] = cmd28content.substr(30, 2).toInt(16)
+        result['拔SIM卡次数'] = cmd28content.substr(32, 2).toInt(16)
+        result['GSM信号强度'] = cmd28content.substr(34, 2).toInt(16)
+    }
 
-    result['导航状态'] = str
+    if (dataContentLocation) {
+        let year = "20" + dataContentLocation.substr(0, 2).toInt(16).toString(2).substr(2, 6).toInt(2)
+        let month = dataContentLocation.substr(2, 2).toInt(16)
+        let day = dataContentLocation.substr(4, 2).toInt(16)
+        let hour = dataContentLocation.substr(6, 2).toInt(16)
+        let minute = dataContentLocation.substr(8, 2).toInt(16)
+        let second = dataContentLocation.substr(10, 2).toInt(16)
+        result['终端位置时间'] = formatDateTime(new Date(`${year}-${month}-${day} ${hour}:${minute}:${second}`).getTime() + 8 * 3600000)
 
-    let num = parseInt(value9, 16);
-    let num2 = parseInt(value10, 16);
-    let num3 = parseInt(value11, 16);
-    let num4 = parseInt(value12, 16);
-    let num5 = parseInt(value13, 16);
-    let num6 = parseInt(value14, 16);
-    let num7 = parseInt(value15, 16);
-    let num8 = parseInt(value16, 16);
-    let num9 = ((num3 * 100 + num4) * 1.0 / 10000.0 + num2) / 60.0 + num;
-    let num10 = ((num7 * 100 + num8) * 1.0 / 10000.0 + num6) / 60.0 + num5;
+        let num1 = dataContentLocation.substr(12, 2).toInt(16)
+        let num2 = dataContentLocation.substr(14, 2).toInt(16)
+        let num3 = dataContentLocation.substr(16, 2).toInt(16)
+        let num4 = dataContentLocation.substr(18, 2).toInt(16)
+        let num5 = dataContentLocation.substr(20, 2).toInt(16)
+        let num6 = dataContentLocation.substr(22, 2).toInt(16)
+        let num7 = dataContentLocation.substr(24, 2).toInt(16)
+        let num8 = dataContentLocation.substr(26, 2).toInt(16)
+        result['经度'] = num5 + ((num7 * 100 + num8) * 1.0 / 10000.0 + num6) / 60.0
+        result['纬度'] = num1 + ((num3 * 100 + num4) * 1.0 / 10000.0 + num2) / 60.0
+        let xxx = await getPositonsX(result['经度'], result['纬度'])
+        result['详细位置'] = xxx
 
-    result['经度'] = num10
-    result['纬度'] = num9
-    let xxx = await getPositonsX(num10, num9)
-    result['详细位置'] = xxx
+        let state1 = dataContentLocation.substr(32, 2).toInt(16).toString(2)
+        result[''] = ''
+        result['----------状态1----------'] = ''
+        result['导航状态'] = state1.substr(0, 1) == '1' ? '导航' : '不导航'
+        result['0.05Hz脉冲'] = state1.substr(1, 1) == '1' ? '关闭' : '开启'
+        result['PLC上电'] = state1.substr(2, 1) == '1' ? '上电' : '不上电'
+        result['曾自动锁车标志'] = state1.substr(3, 1) == '1' ? '曾锁车' : '正常'
+        result['0.5Hz脉冲'] = state1.substr(4, 1) == '1' ? '关闭' : '启动'
+        result['K继电器失电'] = state1.substr(5, 1) == '1' ? '不吸合' : '吸合'
+        result['GPS天线故障'] = state1.substr(6, 1) == '1' ? '故障' : '正常'
+        result['是否有总线定时输出'] = state1.substr(7, 1) == '1' ? '有' : '没有'
+
+        let state2 = dataContentLocation.substr(34, 2).toInt(16).toString(2)
+        result[' '] = ''
+        result['----------状态2----------'] = ''
+        result['SIM卡更换报警'] = state2.substr(0, 1) == '1' ? '报警' : '正常'
+        result['开盖状态'] = state2.substr(0, 1) == '1' ? '报警' : '正常'
+        result['SIM卡曾拔卡'] = state2.substr(0, 1) == '1' ? '曾拔卡' : '正常'
+
+        let state3 = dataContentLocation.substr(36, 2).toInt(16).toString(2)
+        result['  '] = ''
+        result['----------状态3----------'] = ''
+        result['串口波特率'] = state3.substr(0, 1) == '1' ? '其它' : '9600'
+        result['CAN口波特率'] = state3.substr(1, 1) == '1' ? '其它' : '125K'
+        result['备用电池欠压报警'] = state3.substr(3, 1) == '1' ? '报警' : '正常'
+        result['备用电池断电报警'] = state3.substr(4, 1) == '1' ? '报警' : '正常'
+        result['主电源欠压报警'] = state3.substr(5, 1) == '1' ? '报警' : '正常'
+        result['主电源断电报警'] = state3.substr(6, 1) == '1' ? '报警' : '正常'
+        result['总线故障报警'] = state3.substr(7, 1) == '1' ? '报警' : '正常'
+
+        let state4 = dataContentLocation.substr(38, 2).toInt(16).toString(2)
+        result['   '] = ''
+        result['----------状态4----------'] = ''
+        result['总线心跳状态'] = state4.substr(3, 1) == '1' ? '错误' : '正确'
+        result['ACC2上电'] = state4.substr(4, 1) == '1' ? '上电' : '断电'
+        result['休眠报警'] = state4.substr(5, 1) == '1' ? '休眠' : '未休眠'
+    }
     return result
 }
 
@@ -519,7 +585,7 @@ async function decodeOriginTraceDataFromXlsx(readFileName) {
     }
 
     for (var i = 0; i < toBeDecode.length; i++) {
-        let result = await trajectoryDataDecode(toBeDecode[i]['内容'])
+        let result = await zl_gprs_13_decode(toBeDecode[i]['内容'])
         if (result) {
             toBeDecode[i]['终端位置时间'] = result['终端位置时间']
             toBeDecode[i]['导航状态'] = result['导航状态']

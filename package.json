@@ -1,5 +1,5 @@
 {
-  "name": "electron-quick-start",
+  "name": "gprs13",
   "version": "1.0.0",
   "description": "A minimal Electron application",
   "main": "main.js",
@@ -17,7 +17,7 @@
   "author": "GitHub",
   "license": "CC0-1.0",
   "devDependencies": {
-    "electron": "~1.6.2",
+    "electron": "~2.0.2",
     "electron-packager": "^10.1.0",
     "grunt-electron-installer": "^2.1.0",
     "memeye": "^1.0.3",
