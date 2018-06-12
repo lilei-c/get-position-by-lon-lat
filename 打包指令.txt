@@ -1,1 +1,5 @@
+electron-packager  ./ gprs13解析工具-180612  
+
+or
+
 electron-packager  ./ app --platform=win32 --arch=ia32

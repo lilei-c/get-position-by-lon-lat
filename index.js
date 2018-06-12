@@ -327,6 +327,7 @@ function saveJsonAsExcel(jsonObjs, excelName) {
     let colObj = {}
     jsonObjs.forEach(m => {
         for (let property in m) {
+            if (!m[property]) continue
             if (!colObj[property] || !m[property].replace)
                 colObj[property] = property.replace(/[\u0391-\uFFE5]/g, "aa").length
         }
@@ -367,8 +368,8 @@ document.getElementById('trajectory-btn').onclick = trajectory_btn_click
 async function trajectory_btn_click() {
     $('#trajectory-result').html('')
     let data = $('#trajectory-content').val().replace(/\s/g, '')
-    if (!data || data.length < 40)
-        return alert('原始数据长度小于40')
+    if (!data || data.length < 38)
+        return alert('数据无效')
     let result = await zl_gprs_13_decode(data)
     if (!result)
         return alert('解析失败')
@@ -385,6 +386,7 @@ async function trajectory_btn_click() {
 }
 
 async function zl_gprs_13_decode(data) {
+    data = data.toLowerCase()
     let result = {}
     let cmdCode = data.substr(4, 2)
     if (!~['17', '18', '28'].indexOf(cmdCode)) {
@@ -400,16 +402,13 @@ async function zl_gprs_13_decode(data) {
         dataContentLocation = data.substr(34, 40)
 
     if (cmdCode == '17') {
-        let cmd17Alarm = data.substr(35, 2).toInt(10).toString(2).padStart(8, '0')
+        let cmd17Alarm = data.substr(34, 2).toInt(16).toString(2).padStartWithZero(8)
         if (cmd17Alarm == '10101010') {//10101010=>AA AA是特殊情况 无所谓发生,解除
-            result['报警标志'] = '终端连接心跳包'
+            result['报警标志'] = '终端连接心跳包 (AA)'
         } else {
+            console.log(cmd17Alarm)
             result['报警标志'] = cmd17Alarm.substr(0, 1) == '1' ? '报警发生' : '报警解除'
             let alarmValue = ''
-            console.log(cmd17Alarm)
-            console.log(cmd17Alarm.substr(1, 7))
-            console.log(cmd17Alarm.substr(1, 7).toInt(2))
-            console.log(cmd17Alarm.substr(1, 7).toInt(2).toString(16))
             switch (cmd17Alarm.substr(1, 7).toInt(2).toString(16)) {
                 case '1': alarmValue = 'GPS天线故障'; break
                 case '4': alarmValue = '曾自动锁车标志'; break
@@ -427,15 +426,16 @@ async function zl_gprs_13_decode(data) {
             }
             result['报警值'] = alarmValue
         }
+        result['     '] = ''
     } else if (cmdCode == '28') {
         let cmd28content = data.substr(34, 36)
-        result['主电源电压'] = cmd28content.substr(0, 4).toInt(16).divide(10).toFixed(1) + 'V'
-        result['备用电池电压'] = cmd28content.substr(4, 2).toInt(16).divide(10).toFixed(1) + 'V'
-        result['终端内部温度'] = cmd28content.substr(6, 2).toInt(16) - 60 + '℃'
-        result['主电休眠上报间隔'] = cmd28content.substr(8, 2).toInt(16) + 'h'
-        result['备电休眠上报间隔'] = cmd28content.substr(10, 2).toInt(16) + 'h'
-        result['ACC ON总累计时间'] = cmd28content.substr(12, 8).toInt(16) + 'm'
-        result['GPS终端总通电时间'] = cmd28content.substr(20, 8).toInt(16) + 'm'
+        result['主电源电压'] = cmd28content.substr(0, 4).toInt(16).divide(10).toFixed(1) + ' V'
+        result['备用电池电压'] = cmd28content.substr(4, 2).toInt(16).divide(10).toFixed(1) + ' V'
+        result['终端内部温度'] = cmd28content.substr(6, 2).toInt(16) - 60 + ' ℃'
+        result['主电休眠上报间隔'] = cmd28content.substr(8, 2).toInt(16) + ' h'
+        result['备电休眠上报间隔'] = cmd28content.substr(10, 2).toInt(16) + ' h'
+        result['ACC ON总累计时间'] = cmd28content.substr(12, 8).toInt(16) + ' min'
+        result['GPS终端总通电时间'] = cmd28content.substr(20, 8).toInt(16) + ' min'
         result['开盖次数'] = cmd28content.substr(28, 2).toInt(16)
         result['拔GPS天线次数'] = cmd28content.substr(30, 2).toInt(16)
         result['拔SIM卡次数'] = cmd28content.substr(32, 2).toInt(16)
@@ -464,42 +464,48 @@ async function zl_gprs_13_decode(data) {
         let xxx = await getPositonsX(result['经度'], result['纬度'])
         result['详细位置'] = xxx
 
-        let state1 = dataContentLocation.substr(32, 2).toInt(16).toString(2)
+        let state1 = dataContentLocation.substr(32, 2).toInt(16).toString(2).padStartWithZero(8)
         result[''] = ''
         result['----------状态1----------'] = ''
-        result['导航状态'] = state1.substr(0, 1) == '1' ? '导航' : '不导航'
-        result['0.05Hz脉冲'] = state1.substr(1, 1) == '1' ? '关闭' : '开启'
-        result['PLC上电'] = state1.substr(2, 1) == '1' ? '上电' : '不上电'
-        result['曾自动锁车标志'] = state1.substr(3, 1) == '1' ? '曾锁车' : '正常'
-        result['0.5Hz脉冲'] = state1.substr(4, 1) == '1' ? '关闭' : '启动'
-        result['K继电器失电'] = state1.substr(5, 1) == '1' ? '不吸合' : '吸合'
-        result['GPS天线故障'] = state1.substr(6, 1) == '1' ? '故障' : '正常'
-        result['是否有总线定时输出'] = state1.substr(7, 1) == '1' ? '有' : '没有'
+        result['bit(7) 导航'] = state1.substr(0, 1) == '1' ? '导航' : '不导航'
+        result['bit(6) 0.05Hz脉冲'] = state1.substr(1, 1) == '1' ? '关闭' : '开启'
+        result['bit(5) PLC上电'] = state1.substr(2, 1) == '1' ? '上电' : '不上电'
+        result['bit(4) 曾自动锁车标志'] = state1.substr(3, 1) == '1' ? '曾锁车' : '正常'
+        result['bit(3) 0.5Hz脉冲'] = state1.substr(4, 1) == '1' ? '关闭' : '启动'
+        result['bit(2) K继电器失电'] = state1.substr(5, 1) == '1' ? '不吸合' : '吸合'
+        result['bit(1) GPS天线故障'] = state1.substr(6, 1) == '1' ? '故障' : '正常'
+        result['bit(0) 是否有总线定时输出'] = state1.substr(7, 1) == '1' ? '有' : '没有'
 
-        let state2 = dataContentLocation.substr(34, 2).toInt(16).toString(2)
+        let state2 = dataContentLocation.substr(34, 2).toInt(16).toString(2).padStartWithZero(8)
         result[' '] = ''
         result['----------状态2----------'] = ''
-        result['SIM卡更换报警'] = state2.substr(0, 1) == '1' ? '报警' : '正常'
-        result['开盖状态'] = state2.substr(0, 1) == '1' ? '报警' : '正常'
-        result['SIM卡曾拔卡'] = state2.substr(0, 1) == '1' ? '曾拔卡' : '正常'
+        result['bit(7) SIM卡更换报警'] = state2.substr(0, 1) == '1' ? '报警' : '正常'
+        result['bit(6) 开盖状态'] = state2.substr(1, 1) == '1' ? '报警' : '正常'
+        result['bit(5) SIM卡曾拔卡'] = state2.substr(2, 1) == '1' ? '曾拔卡' : '正常'
+        result['bit(4) 曾通讯故障状态(删除)'] = state2.substr(3, 1) == '1' ? '报警' : '没有'
+        result['bit(3) IC卡插入(暂不要求)'] = state2.substr(4, 1) == '1' ? '插卡' : '未插'
+        result['bit(2) 进区报警(暂不要求)'] = state2.substr(5, 1) == '1' ? '报警' : '没有'
+        result['bit(1) 越界报警(暂不要求)'] = state2.substr(6, 1) == '1' ? '报警' : '没有'
+        result['bit(0) 超速报警(删除)'] = state2.substr(7, 1) == '1' ? '报警' : '没有'
 
-        let state3 = dataContentLocation.substr(36, 2).toInt(16).toString(2)
+        let state3 = dataContentLocation.substr(36, 2).toInt(16).toString(2).padStartWithZero(8)
         result['  '] = ''
         result['----------状态3----------'] = ''
-        result['串口波特率'] = state3.substr(0, 1) == '1' ? '其它' : '9600'
-        result['CAN口波特率'] = state3.substr(1, 1) == '1' ? '其它' : '125K'
-        result['备用电池欠压报警'] = state3.substr(3, 1) == '1' ? '报警' : '正常'
-        result['备用电池断电报警'] = state3.substr(4, 1) == '1' ? '报警' : '正常'
-        result['主电源欠压报警'] = state3.substr(5, 1) == '1' ? '报警' : '正常'
-        result['主电源断电报警'] = state3.substr(6, 1) == '1' ? '报警' : '正常'
-        result['总线故障报警'] = state3.substr(7, 1) == '1' ? '报警' : '正常'
+        result['bit(7) 串口波特率'] = state3.substr(0, 1) == '1' ? '其它' : '9600'
+        result['bit(6) CAN口波特率'] = state3.substr(1, 1) == '1' ? '其它' : '125K'
+        result['bit(5) 曾开盖状态(删除)'] = state3.substr(2, 1) == '1' ? '曾开盖' : '正常'
+        result['bit(4) 备用电池欠压报警'] = state3.substr(3, 1) == '1' ? '报警' : '正常'
+        result['bit(3) 备用电池断电报警'] = state3.substr(4, 1) == '1' ? '报警' : '正常'
+        result['bit(2) 主电源欠压报警'] = state3.substr(5, 1) == '1' ? '报警' : '正常'
+        result['bit(1) 主电源断电报警'] = state3.substr(6, 1) == '1' ? '报警' : '正常'
+        result['bit(0) 总线故障报警'] = state3.substr(7, 1) == '1' ? '报警' : '正常'
 
-        let state4 = dataContentLocation.substr(38, 2).toInt(16).toString(2)
+        let state4 = dataContentLocation.substr(38, 2).toInt(16).toString(2).padStartWithZero(8)
         result['   '] = ''
         result['----------状态4----------'] = ''
-        result['总线心跳状态'] = state4.substr(3, 1) == '1' ? '错误' : '正确'
-        result['ACC2上电'] = state4.substr(4, 1) == '1' ? '上电' : '断电'
-        result['休眠报警'] = state4.substr(5, 1) == '1' ? '休眠' : '未休眠'
+        result['bit(4) 总线心跳状态'] = state4.substr(3, 1) == '1' ? '错误' : '正确'
+        result['bit(3) ACC2上电'] = state4.substr(4, 1) == '1' ? '上电' : '断电'
+        result['bit(2) 休眠报警'] = state4.substr(5, 1) == '1' ? '休眠' : '未休眠'
     }
     return result
 }
@@ -564,13 +570,11 @@ async function decodeOriginTraceDataFromXlsx(readFileName) {
     }
     let toBeDecode = allRecord
         .filter(m => {
-            return (m['指令类型'] == '定时位置信息1.2版'
-                && m['数据方向'] == 'GPRS上行'
-                && m['内容'].length >= 40)
+            return (/^5A4C(17|18)/.test(m['内容']) && m['数据方向'] == 'GPRS上行')
         })
         .map(m => {
             m['终端位置时间'] = ''
-            m['导航状态'] = ''
+            m['导航'] = ''
             m['经度'] = ''
             m['纬度'] = ''
             m['详细位置'] = ''
@@ -588,7 +592,7 @@ async function decodeOriginTraceDataFromXlsx(readFileName) {
         let result = await zl_gprs_13_decode(toBeDecode[i]['内容'])
         if (result) {
             toBeDecode[i]['终端位置时间'] = result['终端位置时间']
-            toBeDecode[i]['导航状态'] = result['导航状态']
+            toBeDecode[i]['导航'] = result['bit(7) 导航']
             toBeDecode[i]['经度'] = result['经度']
             toBeDecode[i]['纬度'] = result['纬度']
             toBeDecode[i]['详细位置'] = result['详细位置']

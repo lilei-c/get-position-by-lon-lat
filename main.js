@@ -11,10 +11,11 @@ const url = require('url')
 // be closed automatically when the JavaScript object is garbage collected.
 let mainWindow
 
-function createWindow () {
+function createWindow() {
   // Create the browser window.
-  mainWindow = new BrowserWindow({width: 1000, height: 700})
-  mainWindow.webContents.openDevTools()
+  mainWindow = new BrowserWindow({ width: 1000, height: 700 })
+  // Open the DevTools.
+  //mainWindow.webContents.openDevTools()
 
   // and load the index.html of the app.
   mainWindow.loadURL(url.format({
@@ -22,9 +23,6 @@ function createWindow () {
     protocol: 'file:',
     slashes: true
   }))
-
-  // Open the DevTools.
-  // mainWindow.webContents.openDevTools()
 
   // Emitted when the window is closed.
   mainWindow.on('closed', function () {

@@ -10,10 +10,10 @@
 <body>
   <ul id="myTab" class="nav nav-tabs">
     <li class="active">
-      <a href="#trajectory-tab" data-toggle="tab">轨迹数据解析(单个)</a>
+      <a href="#trajectory-tab" data-toggle="tab">GPRS13原始数据解析(单个)</a>
     </li>
     <li>
-      <a href="#trajectory-batch-tab" data-toggle="tab">轨迹数据解析(批量)</a>
+      <a href="#trajectory-batch-tab" data-toggle="tab">GPRS13轨迹数据解析(批量)</a>
     </li>
     <li class="dropdown">
       <a href="#lonlat-tab" data-toggle="tab">经纬度解析(测试)</a>
@@ -21,7 +21,7 @@
   </ul>
   <div id="myTabContent" class="tab-content" style="margin: 4px 1em;">
     <div class="tab-pane fade in active" id="trajectory-tab">
-      <textarea id="trajectory-content" class="form-control" rows="3" placeholder="请输入原始轨迹数据"></textarea>
+      <textarea id="trajectory-content" class="form-control" rows="3" placeholder="输入GPRS13原始数据"></textarea>
       <button class="btn btn-default" id="trajectory-btn" style="margin-top: 1em;">解析</button>
       <p style="margin-top: 1em;"></p>
       <p id="trajectory-result">
@@ -29,12 +29,9 @@
     </div>
     <div class="tab-pane fade" id="trajectory-batch-tab">
       <div id="trajectory-batch" ondrop="drop(event)" ondragover="allowDrop(event)" style="height: 260px; background-color: darkseagreen;">
-        <p style="margin-left:4px">将excel文件拖放到绿色区域开始解析, excel至少包含三列(内容/指令类型/数据方向)</p>
+        <p style="margin-left:4px">将excel文件拖放到绿色区域开始解析, excel至少包含列(内容/数据方向)</p>
         <p></p>
-        <p style="margin-left:4px">只解析符合以下条件的数据:</p>
-        <p style="margin-left:2em">1.指令类型=定时位置信息1.2版</p>
-        <p style="margin-left:2em">2.数据方向=GPRS上行</p>
-        <p style="margin-left:2em">3.内容: 长度大于40</p>
+        <p style="margin-left:4px">只解析17 18 上来的位置信息</p>
       </div>
       <p style="margin-top: 1em;display:none;" class="trajectory-batch-rate">解析开始, 进度:</p>
       <div class="progress trajectory-batch-rate" style="display:none">
@@ -66,6 +63,16 @@
   function allowDrop(ev) {
     ev.preventDefault();
   }
+</script>
+
+<script>
+  document.addEventListener("keydown", function (e) {
+    if (e.which === 123) {
+      require('electron').remote.getCurrentWindow().toggleDevTools();
+    } else if (e.which === 116) {
+      location.reload();
+    }
+  });
 </script>
 
 </html>
