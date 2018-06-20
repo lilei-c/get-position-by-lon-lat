@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>位置解析小工具</title>
+  <title>原始数据解析小工具</title>
   <link rel="stylesheet" href="js_css/bootstrap-3.3.7.min.css">
 </head>
 
@@ -47,9 +47,6 @@
       <button class="btn btn-default" id="lonlat-btn" style="margin-top: 1em;">开始 </button>
     </div>
   </div>
-
-  <div id="memoryusage" style="position: absolute;float: right;margin-right: 0;bottom: 0;right: 0;color: grey;font-size: 0.9em;">
-  </div>
 </body>
 <script src="js_css/jquery-2.1.1.min.js"></script>
 <script>if (typeof module === 'object') { window.jQuery = window.$ = module.exports; };</script>
@@ -63,9 +60,7 @@
   function allowDrop(ev) {
     ev.preventDefault();
   }
-</script>
 
-<script>
   document.addEventListener("keydown", function (e) {
     if (e.which === 123) {
       require('electron').remote.getCurrentWindow().toggleDevTools();
