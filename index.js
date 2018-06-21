@@ -91,42 +91,45 @@ async function decodeOriginTraceDataFromXlsx(readFileName) {
         $('#trajectory-batch-rate-show1').attr('style', `width:${rate}%`)
         $('#trajectory-batch-rate-show2').html(`${i + 1}/${toBeDecode.length}`)
     }
-    let savePath = saveJsonAsExcel(toBeDecode, readFileName)
+
+    //保存文件名
+    let excelNameArr = readFileName.split('.')
+    excelNameArr[excelNameArr.length - 1] = 'xlsx'
+    excelNameArr[excelNameArr.length - 2] += '_解析结果'
+    let savePath = excelNameArr.join('.')
+    console.log(toBeDecode)
+    saveJsonAsExcel(toBeDecode, savePath)
     $('.trajectory-batch-result').show()
     $('.trajectory-batch-result.path').html(savePath)
     document.getElementById('trajectory-batch').ondrop = drop
 }
 
-var redisClient;
-document.getElementById('lonlat-btn').onclick = start
-async function start() {
+let redisClient;
+document.getElementById('lonlat-btn').onclick = async function () {
     if (!redisClient) {
         redisClient = require('redis').createClient()
     }
 
     $('#lonlat-btn').onclick = '';
 
-    console.log('start')
-    //清空缓存
-    if (!await flashRedis())
+    console.log('开始')
+    if (!await flushRedis())
         return console.log('redis flush all err!')
-    console.log('flush all')
+    console.log('1.初始化数据库')
 
     //获取所有文件名
     let files = loopDirGetFilename('原始数据/', [])
 
-    //经纬度存入缓存,返回待解析经纬度总记录
     let lonlatCount = await filesToRedis(files)
+    console.log(`2.所有经纬度存入数据库, 共${lonlatCount}条`)
 
     //解析经纬度
     await check(lonlatCount)
 
-    setTimeout(function () {
-        writeFiles(files)
-    }, 5000);
     //详细地址写入文件
+    await writeFiles(files)
 
-    console.log('end')
+    console.log('结束')
 }
 
 var lonlatCount_Copy = 0
@@ -169,36 +172,38 @@ function fileToRedis(readFileName, lonlatCount) {
     })
 }
 
-var getRequestCounter = 0
-function detailAddressInRedis(tag) {
-    redisClient.get(tag, function (err, lonlat) {
-        if (err || !lonlat) {
-            console.error(`严重错误! 从redis读取经纬度失败 tag:${tag}`)
-            console.error(err)
-            return
-        }
-        getRequestCounter++
-        getPositons(lonlat)
+async function detailAddressInRedis(tag) {
+    return new Promise(async function (resolve) {
+        let lonlat = await getValueFromRedis(tag)
+        let lon = lonlat.split(',')[0]
+        let lat = lonlat.split(',')[1]
+        let address = await geo.getPositons(lon, lat)
+        redisClient.set('key_' + lonlat, address, () => {
+            resolve()
+        })
+    })
+}
+
+async function getValueFromRedis(key) {
+    return new Promise(resolve => {
+        redisClient.get(key, function (err, lonlat) {
+            if (err || !lonlat) {
+                reject(`严重错误! 从redis读取经纬度失败 key:${key}`)
+            } else {
+                resolve(lonlat)
+            }
+        })
     })
 }
 
 function check(lonlatCount) {
     console.log(`共${lonlatCount}条数据待解析`)
-    return new Promise((resolve) => {
-        let getRequestMax = 3
-        let tag = 1
-        var iii = setInterval(function () {
-            if (tag > lonlatCount) {
-                clearInterval(iii)
-                console.log('read all lonlat from redis')
-                resolve()
-            }
-            else if (getRequestCounter <= getRequestMax) {
-                console.log(`${tag}/${lonlatCount} 并发请求数:${getRequestCounter} ${getSpeedAndNeedTime(lonlatCount - tag)}`)
-                detailAddressInRedis(tag)
-                tag++
-            }
-        }, 20)
+    return new Promise(async function (resolve) {
+        for (let i = 1; i <= lonlatCount; i++) {
+            await detailAddressInRedis(i)
+            console.log(`${i}/${lonlatCount}  ${getSpeedAndNeedTime(lonlatCount - i)}`)
+        }
+        resolve()
     })
 }
 
@@ -211,7 +216,7 @@ function getSpeedAndNeedTime(lonlatCount) {
         return '剩余时间计算中...'
     let start = arr.shift()
     let speed = divisor / ((dateNow - start) / 1000)
-    return `当前请求速度:${speed.toFixed(0)}条/s 剩余时间约:${(lonlatCount / speed).toFixed(0).secondToCountDown()}`
+    return `当前请求速度:${speed.toFixed(0)}条/s 剩余时间约:${(lonlatCount / speed).toFixed(0).toInt().secondToCountDown()}`
 }
 
 async function writeFiles(files) {
@@ -231,6 +236,7 @@ function writeFile(filename) {
         var currentLine = 0
         readline.createInterface({ input: fs.createReadStream(filename) })
             .on('line', (line) => {
+                console.log(line)
                 if (++currentLine == 1) {
                     fWrite.write(new Buffer('\xEF\xBB\xBF', 'binary'));//add utf-8 bom
                     fWrite.write(line + ',程序解析详细地址')
@@ -257,34 +263,9 @@ function writeFile(filename) {
     })
 }
 
-var request = require('request');
-function getPositons(lonLats) {
-    var url = `${conf.mapUrl}rgeocode/simple?resType=json&encode=utf-8&range=300&roadnum=3&crossnum=2&poinum=2&retvalue=1&key=55dc8b4eed5d8d2a32060fb80d26bf7310a6e4177224f997fc148baa0b7f81c1eda6fcc3fd003db0&sid=7001&region=${lonLats}&rid=967188`
-    request(url, function (error, response, body) {
-        if (error) {
-            console.log(error)
-            getPositons(lonLats)
-        }
-        else if (response && response.statusCode == 200) {
-            getRequestCounter--
-            redisClient.set('key_' + lonLats, getDetailAddressByOriginData(body))
-        }
-    })
-}
-
-// 打印内存占用情况
-function printMemoryUsage() {
-    var info = process.memoryUsage()
-    console.log(`内存(MB) rss=${mb(info.rss)} heapTotal=${mb(info.heapTotal)} heapUsed=${mb(info.heapUsed)}`)
-}
-function mb(v) {
-    return (v / 1024 / 1024).toFixed(2);
-}
-setInterval(printMemoryUsage, 2000)
-
 //-----------通用方法------------
 
-function flashRedis() {
+function flushRedis() {
     return new Promise((resolve, reject) => {
         redisClient.flushall((err, result) => {
             if (!err && result == 'OK') {
@@ -351,70 +332,39 @@ function Workbook() {
 }
 
 function saveJsonAsExcel(jsonObjs, excelName) {
-    var wb = new Workbook()
-    ws = XLSX.utils.json_to_sheet(jsonObjs);
-
-    console.log(jsonObjs)
+    let ws = XLSX.utils.json_to_sheet(jsonObjs);
     //计算列宽
-    let colObj = {}
-    jsonObjs.forEach(m => {
-        for (let property in m) {
-            if (!m[property]) continue
-            if (!colObj[property] || !m[property].replace)
-                colObj[property] = property.replace(/[\u0391-\uFFE5]/g, "aa").length
-        }
-
-        for (let property in m) {
-            if (!m[property]) continue
-            let charLength = m[property].toString().replace(/[\u0391-\uFFE5]/g, "aa").length
-            if (charLength > colObj[property])
-                colObj[property] = charLength
-        }
-    })
-    let cols = []
-    for (let i in colObj) {
-        cols.push({ wpx: colObj[i] * 6.7 })
-    }
-
-    //计算列宽
-    ks = Object.keys(jsonObjs[0])
-    cols2 = []
+    let ks = Object.keys(jsonObjs[0])
+    let colsLen = []
     //初始化全0
     for (let i = 0; i < ks.length; i++) {
-        cols2.push(0)
+        colsLen.push(0)
     }
     //比较值
     jsonObjs.forEach(m => {
         for (let i = 0; i < ks.length; i++) {
-            let len = (m[ks[i]] + '').length
-            if (len > cols2[i])
-                cols2[i] = len
+            let len = (m[ks[i]] + '').replace(/[\u0391-\uFFE5]/g, "cn").length
+            if (len > colsLen[i])
+                colsLen[i] = len
         }
     })
     //比较属性名
     for (let i = 0; i < ks.length; i++) {
-        let len = ks[i].length
-        if (len > cols2[i])
-            cols2[i] = len
+        let len = ks[i].replace(/[\u0391-\uFFE5]/g, "cn").length
+        if (len > colsLen[i])
+            colsLen[i] = len
     }
+    colsLen = colsLen.map(m => {
+        m = m < 60 ? m : 10 //太长的列
+        return { wpx: m * 6.7 }
+    })
 
-    ws['!cols'] = cols;
+    ws['!cols'] = colsLen;
 
     //sheet
-    let ws_name = "SheetJS";
-    wb.SheetNames.push(ws_name);
-    wb.Sheets[ws_name] = ws;
-
-    //路径
-    //excelName = '轨迹解析' + excelName
-    //createDirByFilenamecreateDirByFilename(excelName)
-
-    //文件名
-    var excelNameArr = excelName.split('.')
-    excelNameArr[excelNameArr.length - 1] = 'xlsx'
-    excelNameArr[excelNameArr.length - 2] += '_解析结果'
-    excelName = excelNameArr.join('.')
+    let wb = new Workbook()
+    wb.SheetNames.push('Sheet1');
+    wb.Sheets['Sheet1'] = ws;
 
     XLSX.writeFile(wb, excelName);
-    return excelName
 }

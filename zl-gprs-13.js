@@ -80,9 +80,9 @@ module.exports = {
             let num6 = dataContentLocation.substr(22, 2).toInt(16)
             let num7 = dataContentLocation.substr(24, 2).toInt(16)
             let num8 = dataContentLocation.substr(26, 2).toInt(16)
-            result['经度'] = num5 + ((num7 * 100 + num8) * 1.0 / 10000.0 + num6) / 60.0
-            result['纬度'] = num1 + ((num3 * 100 + num4) * 1.0 / 10000.0 + num2) / 60.0
-            let xxx = await geo.getPositonsX(result['经度'], result['纬度'])
+            result['经度'] = (num5 + ((num7 * 100 + num8) * 1.0 / 10000.0 + num6) / 60.0).toFixed(7).replace(/[0]+$/, '')
+            result['纬度'] = (num1 + ((num3 * 100 + num4) * 1.0 / 10000.0 + num2) / 60.0).toFixed(7).replace(/[0]+$/, '')
+            let xxx = await geo.getPositons(result['经度'], result['纬度'])
             result['详细位置'] = xxx
 
             let state1 = dataContentLocation.substr(32, 2).toInt(16).toString(2).padStartWithZero(8)

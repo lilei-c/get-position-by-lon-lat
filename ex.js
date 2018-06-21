@@ -1,4 +1,4 @@
-String.prototype.toInt = function (radix) {
+String.prototype.toInt = function (radix = 10) {
     return parseInt(this, radix)
 }
 

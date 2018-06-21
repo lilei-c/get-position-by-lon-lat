@@ -15,8 +15,11 @@
     <li>
       <a href="#trajectory-batch-tab" data-toggle="tab">GPRS13轨迹数据解析(批量)</a>
     </li>
+    <li>
+      <a href="#lonlat-batch-tab" data-toggle="tab">经纬度解析</a>
+    </li>
     <li class="dropdown">
-      <a href="#lonlat-tab" data-toggle="tab">经纬度解析(测试)</a>
+      <a href="#lonlat-tab" data-toggle="tab">经纬度解析(海量数据)(测试)</a>
     </li>
   </ul>
   <div id="myTabContent" class="tab-content" style="margin: 4px 1em;">
@@ -68,6 +71,16 @@
       location.reload();
     }
   });
+
+  // 打印内存占用情况
+  function printMemoryUsage() {
+    var info = process.memoryUsage()
+    console.log(`内存(MB) rss=${mb(info.rss)} heapTotal=${mb(info.heapTotal)} heapUsed=${mb(info.heapUsed)}`)
+  }
+  function mb(v) {
+    return (v / 1024 / 1024).toFixed(2);
+  }
+  setInterval(printMemoryUsage, 10000)
 </script>
 
 </html>
