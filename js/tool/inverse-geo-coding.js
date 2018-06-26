@@ -1,11 +1,13 @@
+const conf = require('../../js/tool/conf')
+
 module.exports = {
-    getPositons: async function (lon, lat) {
-        return new Promise(async function (resolve) {
+    getPositons: async function (lon, lat, tryTimes = 3, timeout = 3000) {
+        return new Promise(async function (resolve, reject) {
             let rst = ''
-            for (let i = 0; i < 3; i++) {
+            for (let i = 0; i < tryTimes; i++) {
                 console.log('i:' + i)
                 try {
-                    rst = await getPositonsX(lon, lat)
+                    rst = await getPositonsX(lon, lat, timeout)
                     if (rst) {
                         console.log(rst)
                         resolve(rst)
@@ -15,15 +17,15 @@ module.exports = {
                     console.error(error)
                 }
             }
-            resolve('')
+            reject('get position fail')
         })
     }
 }
 
-async function getPositonsX(lon, lat) {
+async function getPositonsX(lon, lat, timeout) {
     return new Promise((resolve, reject) => {
         var url = `${conf.mapUrl}rgeocode/simple?resType=json&encode=utf-8&range=300&roadnum=3&crossnum=2&poinum=2&retvalue=1&key=55dc8b4eed5d8d2a32060fb80d26bf7310a6e4177224f997fc148baa0b7f81c1eda6fcc3fd003db0&sid=7001&region=${lon},${lat}&rid=967188`
-        require('request')(url, function (error, response, body) {
+        require('request')(url, { timeout: timeout }, function (error, response, body) {
             if (response && response.statusCode == 200) {
                 resolve(getDetailAddressByOriginData(body))
             }

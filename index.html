@@ -3,8 +3,8 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>原始数据解析小工具</title>
-  <link rel="stylesheet" href="js_css/bootstrap-3.3.7.min.css">
+  <title>原始数据检验助手</title>
+  <link rel="stylesheet" href="static/bootstrap-3.3.7.min.css">
 </head>
 
 <body>
@@ -16,7 +16,7 @@
       <a href="#trajectory-batch-tab" data-toggle="tab">GPRS13轨迹数据解析(批量)</a>
     </li>
     <li>
-      <a href="#lonlat-batch-tab" data-toggle="tab">经纬度解析</a>
+      <a href="#ttt" data-toggle="tab">经纬度解析</a>
     </li>
     <li class="dropdown">
       <a href="#lonlat-tab" data-toggle="tab">经纬度解析(海量数据)(测试)</a>
@@ -32,9 +32,9 @@
     </div>
     <div class="tab-pane fade" id="trajectory-batch-tab">
       <div id="trajectory-batch" ondrop="drop(event)" ondragover="allowDrop(event)" style="height: 260px; background-color: darkseagreen;">
-        <p style="margin-left:4px">将excel文件拖放到绿色区域开始解析, excel至少包含列(内容/数据方向)</p>
-        <p></p>
-        <p style="margin-left:4px">只解析17 18 上来的位置信息</p>
+        <p style="margin-left:4px">将excel文件拖放到绿色区域开始解析</p>
+        <p style="margin:1em 0 0 4px">excel至少包含列(内容,数据方向)</p>
+        <p style="margin:1em 0 0 4px">只解析17 18 上来的位置信息</p>
       </div>
       <p style="margin-top: 1em;display:none;" class="trajectory-batch-rate">解析开始, 进度:</p>
       <div class="progress trajectory-batch-rate" style="display:none">
@@ -46,16 +46,25 @@
       <p style="margin-top: 1em;display:none;" class="trajectory-batch-result">解析完成, 文件保存位置:</p>
       <p style="display:none;" class="trajectory-batch-result path"></p>
     </div>
+    <div class="tab-pane fade" id="ttt">
+      <div id="position-by-lonlat-batch" ondrop="drop(event)" ondragover="allowDrop(event)" style="height: 260px; background-color: darkseagreen;">
+        <p style="margin-left:4px">将excel文件拖放到绿色区域开始解析</p>
+        <p style="margin:1em 0 0 4px">excel至少包含列(经度,纬度)</p>
+      </div>
+    </div>
     <div class="tab-pane fade" id="lonlat-tab">
       <button class="btn btn-default" id="lonlat-btn" style="margin-top: 1em;">开始 </button>
     </div>
   </div>
 </body>
-<script src="js_css/jquery-2.1.1.min.js"></script>
+<script src="static/jquery-2.1.1.min.js"></script>
 <script>if (typeof module === 'object') { window.jQuery = window.$ = module.exports; };</script>
-<script src="js_css/bootstrap-3.3.7.min.js"></script>
+<script src="static/bootstrap-3.3.7.min.js"></script>
 <script>
-  require('./index.js');
+  require('./js/view/index.js');
+  require('./js/view/gprs-13-single.js')
+  require('./js/view/gprs-13-batch.js')
+  require('./js/view/get-position-by-lonlat-batch.js')
 
   // You can also require other files to run in this process
   require('./renderer.js')

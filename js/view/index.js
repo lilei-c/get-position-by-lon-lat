@@ -1,108 +1,8 @@
-﻿const R = require('ramda')
-const readline = require('readline')
+﻿const readline = require('readline')
 const fs = require('fs')
+const geo = require('../../js/tool/inverse-geo-coding')
 
-require('./ex.js')
-require('./conf.js')
-
-const geo = require('./inverse-geo-coding.js')
-const zl_gprs_13 = require('./zl-gprs-13.js')
-
-window.XLSX = require('./node_modules/xlsx/dist/xlsx.full.min.js')
-
-//单个解析
-document.getElementById('trajectory-btn').onclick = trajectory_btn_click
-async function trajectory_btn_click() {
-    $('#trajectory-result').html('<img src="./js_css/loading.gif"/>')
-    let data = $('#trajectory-content').val().replace(/\s/g, '')
-    if (!data || data.length < 38)
-        return alert('数据无效')
-    let result = await zl_gprs_13.decode(data)
-    if (!result)
-        return alert('解析失败')
-
-    let html = ''
-    for (var i in result) {
-        let valueColor = ''
-        if (result[i] == '报警')
-            valueColor = 'red'
-        html += `<span style="color: blue;">${i}</span> 
-        <span style="color: ${valueColor};">${result[i]}</span><br>`
-    }
-    $('#trajectory-result').html(html)
-}
-
-//批量解析
-document.getElementById('trajectory-batch').ondrop = drop
-function drop(ev) {
-    document.getElementById('trajectory-batch').ondrop = (ev) => { ev.preventDefault(); }
-    ev.preventDefault();
-    var fileObj = ev.dataTransfer.files[0];
-    console.log(fileObj)
-
-    //
-    $('.trajectory-batch-rate').show()
-    $('#trajectory-batch-rate-show1').attr('style', `width:0%`)
-    $('#trajectory-batch-rate-show2').html('')
-    //
-    $('.trajectory-batch-result').hide()
-    $('.trajectory-batch-result.path').html('')
-
-    decodeOriginTraceDataFromXlsx(fileObj.path)
-}
-
-async function decodeOriginTraceDataFromXlsx(readFileName) {
-    let allRecord = GetJsonObjByExcel(readFileName)
-    if (!allRecord) {
-        document.getElementById('trajectory-batch').ondrop = drop
-        return alert('未读取到数据, 请检测文件格式/内容!')
-    }
-    let toBeDecode = allRecord
-        .filter(m => {
-            return (/^5A4C(17|18)/.test(m['内容']) && m['数据方向'] == 'GPRS上行')
-        })
-        .map(m => {
-            m['终端位置时间'] = ''
-            m['导航'] = ''
-            m['经度'] = ''
-            m['纬度'] = ''
-            m['详细位置'] = ''
-            return m
-        })
-    console.log(allRecord)
-    console.log(toBeDecode)
-    console.log('待解析记录数:' + toBeDecode.length)
-    if (toBeDecode.length <= 0) {
-        document.getElementById('trajectory-batch').ondrop = drop
-        return alert('未读取到数据, 请检测文件格式/内容!')
-    }
-
-    for (var i = 0; i < toBeDecode.length; i++) {
-        let result = await zl_gprs_13.decode(toBeDecode[i]['内容'])
-        if (result) {
-            toBeDecode[i]['终端位置时间'] = result['终端位置时间']
-            toBeDecode[i]['导航'] = result['bit(7) 导航']
-            toBeDecode[i]['经度'] = result['经度']
-            toBeDecode[i]['纬度'] = result['纬度']
-            toBeDecode[i]['详细位置'] = result['详细位置']
-        }
-        console.log(toBeDecode[i])
-        let rate = ((i + 1) / toBeDecode.length).toFixed(2) * 100
-        $('#trajectory-batch-rate-show1').attr('style', `width:${rate}%`)
-        $('#trajectory-batch-rate-show2').html(`${i + 1}/${toBeDecode.length}`)
-    }
-
-    //保存文件名
-    let excelNameArr = readFileName.split('.')
-    excelNameArr[excelNameArr.length - 1] = 'xlsx'
-    excelNameArr[excelNameArr.length - 2] += '_解析结果'
-    let savePath = excelNameArr.join('.')
-    console.log(toBeDecode)
-    saveJsonAsExcel(toBeDecode, savePath)
-    $('.trajectory-batch-result').show()
-    $('.trajectory-batch-result.path').html(savePath)
-    document.getElementById('trajectory-batch').ondrop = drop
-}
+require('../../js/tool/ex')
 
 let redisClient;
 document.getElementById('lonlat-btn').onclick = async function () {
@@ -177,7 +77,12 @@ async function detailAddressInRedis(tag) {
         let lonlat = await getValueFromRedis(tag)
         let lon = lonlat.split(',')[0]
         let lat = lonlat.split(',')[1]
-        let address = await geo.getPositons(lon, lat)
+        let address = ''
+        try {
+            address = await geo.getPositons(lon, lat)
+        } catch (error) {
+            address = ''
+        }
         redisClient.set('key_' + lonlat, address, () => {
             resolve()
         })
@@ -312,59 +217,4 @@ function doTheJobByFilename(filename) {
         var jsonArr = GetJsonObjByExcel(filename)
         //
     }
-}
-
-function GetJsonObjByExcel(filename) {
-    try {
-        var workbook = XLSX.readFile(filename)
-        var jsonObj = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]])
-        return jsonObj
-    }
-    catch (ex) {
-        return null;
-    }
-}
-
-function Workbook() {
-    if (!(this instanceof Workbook)) return new Workbook();
-    this.SheetNames = [];
-    this.Sheets = {};
-}
-
-function saveJsonAsExcel(jsonObjs, excelName) {
-    let ws = XLSX.utils.json_to_sheet(jsonObjs);
-    //计算列宽
-    let ks = Object.keys(jsonObjs[0])
-    let colsLen = []
-    //初始化全0
-    for (let i = 0; i < ks.length; i++) {
-        colsLen.push(0)
-    }
-    //比较值
-    jsonObjs.forEach(m => {
-        for (let i = 0; i < ks.length; i++) {
-            let len = (m[ks[i]] + '').replace(/[\u0391-\uFFE5]/g, "cn").length
-            if (len > colsLen[i])
-                colsLen[i] = len
-        }
-    })
-    //比较属性名
-    for (let i = 0; i < ks.length; i++) {
-        let len = ks[i].replace(/[\u0391-\uFFE5]/g, "cn").length
-        if (len > colsLen[i])
-            colsLen[i] = len
-    }
-    colsLen = colsLen.map(m => {
-        m = m < 60 ? m : 10 //太长的列
-        return { wpx: m * 6.7 }
-    })
-
-    ws['!cols'] = colsLen;
-
-    //sheet
-    let wb = new Workbook()
-    wb.SheetNames.push('Sheet1');
-    wb.Sheets['Sheet1'] = ws;
-
-    XLSX.writeFile(wb, excelName);
 }

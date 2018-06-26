@@ -1,6 +1,8 @@
 const R = require('ramda')
 
-const geo = require('./inverse-geo-coding.js')
+const geo = require('./inverse-geo-coding')
+
+require('./ex')
 
 module.exports = {
     decode: async function (data) {
@@ -82,7 +84,13 @@ module.exports = {
             let num8 = dataContentLocation.substr(26, 2).toInt(16)
             result['经度'] = (num5 + ((num7 * 100 + num8) * 1.0 / 10000.0 + num6) / 60.0).toFixed(7).replace(/[0]+$/, '')
             result['纬度'] = (num1 + ((num3 * 100 + num4) * 1.0 / 10000.0 + num2) / 60.0).toFixed(7).replace(/[0]+$/, '')
-            let xxx = await geo.getPositons(result['经度'], result['纬度'])
+
+            let xxx = ''
+            try {
+                xxx = await geo.getPositons(result['经度'], result['纬度'], 2, 2000)
+            } catch (error) {
+                xxx = '获取位置失败...'
+            }
             result['详细位置'] = xxx
 
             let state1 = dataContentLocation.substr(32, 2).toInt(16).toString(2).padStartWithZero(8)
