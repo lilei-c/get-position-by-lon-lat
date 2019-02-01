@@ -1,0 +1,186 @@
+﻿<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>原始数据检验助手</title>
+  <link rel="stylesheet" href="./static/css/bulma.min.css">
+</head>
+
+<body>
+  <div id="app" class="container">
+    <aside class="menu">
+      <p class="menu-label">
+        General
+      </p>
+      <ul class="menu-list">
+        <li><a>Dashboard</a></li>
+        <li><a>Customers</a></li>
+      </ul>
+      <p class="menu-label">
+        Administration
+      </p>
+      <ul class="menu-list">
+        <li><a>Team Settings</a></li>
+        <li>
+          <a class="is-active">Manage Your Team</a>
+          <ul>
+            <li><a>Members</a></li>
+            <li><a>Plugins</a></li>
+            <li><a>Add a member</a></li>
+          </ul>
+        </li>
+        <li><a>Invitations</a></li>
+        <li><a>Cloud Storage Environment Settings</a></li>
+        <li><a>Authentication</a></li>
+      </ul>
+      <p class="menu-label">
+        Transactions
+      </p>
+      <ul class="menu-list">
+        <li><a>Payments</a></li>
+        <li><a>Transfers</a></li>
+        <li><a>Balance</a></li>
+      </ul>
+    </aside>
+  </div>
+  <ul id="myTab" class="nav nav-tabs">
+    <li class="active">
+      <a href="#trajectory-tab" data-toggle="tab">GPRS13原始数据解析(单个)</a>
+    </li>
+    <li>
+      <a href="#trajectory-batch-tab" data-toggle="tab">GPRS13轨迹数据解析(批量)</a>
+    </li>
+    <li>
+      <a href="#ttt" data-toggle="tab">经纬度解析</a>
+    </li>
+    <li class="dropdown">
+      <a href="#lonlat-tab" data-toggle="tab">经纬度解析(海量数据)(测试)</a>
+    </li>
+  </ul>
+  <webview src="view/gprs13/single.html" nodeintegration allowpopups>123</webview>
+
+
+
+  <div id="myTabContent" class="tab-content" style="margin: 4px 1em;">
+    <div class="tab-pane fade in active" id="trajectory-tab">
+      <textarea v-model="gprs13OriginData" class="form-control" rows="3" placeholder="输入GPRS13原始数据"></textarea>
+      <button class="btn btn-default" @click="trajectory_btn_click" style="margin-top: 1em;">解析</button>
+      <p style="margin-top: 1em;"></p>
+      <p>
+        <div v-for="item in gprs13Result" style="margin: 12px 0;">
+          <span style="color: #337ab7;">------------{{item.key}}------------</span>
+          <div v-for="item2 in item.value">
+            <span style="color: #337ab7;">{{item2.key}}</span>
+            <span v-if="item2.value=='报警'" style="color:red;">{{item2.value}}</span>
+            <span v-else>{{item2.value}}</span>
+          </div>
+        </div>
+        <img v-if=loading src="./static/loading.gif" />
+      </p>
+    </div>
+    <div class="tab-pane fade" id="trajectory-batch-tab">
+      <div id="trajectory-batch" ondrop="drop(event)" ondragover="allowDrop(event)" style="height: 260px; background-color: darkseagreen;">
+        <p style="margin-left:4px">将excel文件拖放到绿色区域开始解析</p>
+        <p style="margin:1em 0 0 4px">excel至少包含列(内容,数据方向)</p>
+        <p style="margin:1em 0 0 4px">只解析17 18 上来的位置信息</p>
+      </div>
+      <p style="margin-top: 1em;display:none;" class="trajectory-batch-rate">解析开始, 进度:</p>
+      <div class="progress trajectory-batch-rate" style="display:none">
+        <div id="trajectory-batch-rate-show1" class="progress-bar" role="progressbar" aria-valuenow="60" aria-valuemin="0"
+          aria-valuemax="100" style="width: 0%;">
+          <span id="trajectory-batch-rate-show2"></span>
+        </div>
+      </div>
+      <p style="margin-top: 1em;display:none;" class="trajectory-batch-result">解析完成, 文件保存位置:</p>
+      <p style="display:none;" class="trajectory-batch-result path"></p>
+    </div>
+    <div class="tab-pane fade" id="ttt">
+      <div id="position-by-lonlat-batch" ondrop="drop(event)" ondragover="allowDrop(event)" style="height: 260px; background-color: darkseagreen;">
+        <p style="margin-left:4px">将excel文件拖放到绿色区域开始解析</p>
+        <p style="margin:1em 0 0 4px">excel至少包含列(经度,纬度)</p>
+      </div>
+    </div>
+    <div class="tab-pane fade" id="lonlat-tab">
+      <button class="btn btn-default" id="lonlat-btn" style="margin-top: 1em;">开始 </button>
+    </div>
+  </div>
+</body>
+<script src="static/vue.min.js"></script>
+
+
+<script>
+  // require('./js/view/index.js');
+  // require('./js/view/gprs-13-batch.js')
+  // require('./js/view/get-position-by-lonlat-batch.js')
+
+  // You can also require other files to run in this process
+  //require('./renderer.js')
+
+  function allowDrop(ev) {
+    ev.preventDefault();
+  }
+
+  document.addEventListener("keydown", function (e) {
+    if (e.which === 123) {
+      require('electron').remote.getCurrentWindow().toggleDevTools();
+    } else if (e.which === 116) {
+      location.reload();
+    }
+  });
+
+  // 打印内存占用情况
+  function printMemoryUsage() {
+    var info = process.memoryUsage()
+    console.log(`内存(MB) rss=${mb(info.rss)} heapTotal=${mb(info.heapTotal)} heapUsed=${mb(info.heapUsed)}`)
+  }
+  function mb(v) {
+    return (v / 1024 / 1024).toFixed(2);
+  }
+  //setInterval(printMemoryUsage, 10000)
+
+  //单个解析
+  const zl_gprs_13 = require('./js/tool/zl-gprs-13')
+
+  function arrayFy(obj) {
+    let arr = []
+    Object.keys(obj).forEach(m => {
+      let key = m
+      let value = obj[m]
+      if (typeof value == 'object')
+        value = arrayFy(value)
+      arr.push({ key: key, value: value })
+    })
+    return arr
+  }
+
+  new Vue({
+    el: '#app',
+    data: {
+      loading: false
+      , gprs13OriginData: '5A4C280000018E015A0120903614020012011B295802080019FB9A001EC8CD1C17051E6D0D'
+      , gprs13Result: []
+    },
+    methods: {
+      trajectory_btn_click: async function () {
+        this.gprs13Result = []
+        let data = this.gprs13OriginData.replace(/\s/g, '')
+        if (!data || data.length < 38)
+          return alert('数据无效')
+        loading = true
+        let result = await zl_gprs_13.decode(data)
+        if (!result)
+          return alert('解析失败')
+        console.log(result)
+
+        this.gprs13Result = arrayFy(result.data)
+
+        console.log(this.gprs13Result)
+        loading = false
+      }
+    }
+  })
+
+</script>
+
+</html>

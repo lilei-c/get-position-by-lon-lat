@@ -1,0 +1,110 @@
+﻿<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>原始数据检验助手</title>
+  <link rel="stylesheet" href="../../static/css/bulma.min.css">
+</head>
+
+<body>
+  <div class="container">
+    <div class="notification">
+      This container is <strong>centered</strong> on desktop.
+    </div>
+  </div>
+  <div id="app">
+    <div id="myTabContent" class="tab-content" style="margin: 4px 1em;">
+      <div class="tab-pane fade in active" id="trajectory-tab">
+        <textarea v-model="gprs13OriginData" class="form-control" rows="3" placeholder="输入GPRS13原始数据"></textarea>
+        <button class="btn btn-default" @click="trajectory_btn_click" style="margin-top: 1em;">解析</button>
+        <p style="margin-top: 1em;"></p>
+        <p>
+          <div v-for="item in gprs13Result" style="margin: 12px 0;">
+            <span style="color: #337ab7;">------------{{item.key}}------------</span>
+            <div v-for="item2 in item.value">
+              <span style="color: #337ab7;">{{item2.key}}</span>
+              <span v-if="item2.value=='报警'" style="color:red;">{{item2.value}}</span>
+              <span v-else>{{item2.value}}</span>
+            </div>
+          </div>
+          <img v-if=loading src="./static/loading.gif" />
+        </p>
+      </div>
+    </div>
+  </div>
+</body>
+<script src="../../static/vue.min.js"></script>
+
+<script>
+  // require('./js/view/index.js');
+
+  //require('./renderer.js')
+
+  function allowDrop(ev) {
+    ev.preventDefault();
+  }
+
+  document.addEventListener("keydown", function (e) {
+    if (e.which === 123) {
+      require('electron').remote.getCurrentWindow().toggleDevTools();
+    } else if (e.which === 116) {
+      location.reload();
+    }
+  });
+
+  // 打印内存占用情况
+  function printMemoryUsage() {
+    var info = process.memoryUsage()
+    console.log(`内存(MB) rss=${mb(info.rss)} heapTotal=${mb(info.heapTotal)} heapUsed=${mb(info.heapUsed)}`)
+  }
+  function mb(v) {
+    return (v / 1024 / 1024).toFixed(2);
+  }
+  //setInterval(printMemoryUsage, 10000)
+
+  //单个解析
+  const zl_gprs_13 = require('../../js/tool/zl-gprs-13')
+
+  function arrayFy(obj) {
+    let arr = []
+    Object.keys(obj).forEach(m => {
+      let key = m
+      let value = obj[m]
+      if (typeof value == 'object')
+        value = arrayFy(value)
+      arr.push({ key: key, value: value })
+    })
+    return arr
+  }
+
+  new Vue({
+    el: '#app',
+    data: {
+      loading: false
+      , gprs13OriginData: '5A4C280000018E015A0120903614020012011B295802080019FB9A001EC8CD1C17051E6D0D'
+      , gprs13Result: []
+    },
+    methods: {
+      trajectory_btn_click: async function () {
+        this.gprs13Result = []
+        let data = this.gprs13OriginData.replace(/\s/g, '')
+        if (!data || data.length < 38)
+          return alert('数据无效')
+        loading = true
+        let result = await zl_gprs_13.decode(data)
+        if (!result)
+          return alert('解析失败')
+        console.log(result)
+
+        this.gprs13Result = arrayFy(result.data)
+
+        console.log(this.gprs13Result)
+        loading = false
+      }
+    }
+  })
+
+</script>
+
+</html>

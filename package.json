@@ -17,7 +17,7 @@
   "author": "GitHub",
   "license": "CC0-1.0",
   "devDependencies": {
-    "electron": "^5.0.0-beta.1",
+    "electron": "^4.0.3",
     "electron-packager": "^10.1.0",
     "grunt-electron-installer": "^2.1.0",
     "memeye": "^1.0.3",
