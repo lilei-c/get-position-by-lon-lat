@@ -1,5 +1,5 @@
-const zl_gprs_13 = require('../../js/tool/zl-gprs-13')
-const iexcel = require('../tool/excelHelper')
+//const zl_gprs_13 = require('../../js/tool/zl-gprs-13')
+const iexcel = require('./js/tool/excelHelper')
 
 //批量解析
 document.getElementById('trajectory-batch').ondrop = drop
@@ -22,7 +22,8 @@ function drop(ev) {
 
 async function decodeOriginTraceDataFromXlsx(readFileName) {
     let allRecord = iexcel.getJsonObjByExcel(readFileName)
-    if (!allRecord) {g
+    if (!allRecord) {
+        g
         document.getElementById('trajectory-batch').ondrop = drop
         return alert('未读取到数据, 请检测文件格式/内容!')
     }
@@ -35,7 +36,7 @@ async function decodeOriginTraceDataFromXlsx(readFileName) {
             m['导航'] = ''
             m['经度'] = ''
             m['纬度'] = ''
-            m['详细位置'] = ''
+            m['详细地址'] = ''
             return m
         })
     console.log(allRecord)
@@ -48,12 +49,13 @@ async function decodeOriginTraceDataFromXlsx(readFileName) {
 
     for (var i = 0; i < toBeDecode.length; i++) {
         let result = await zl_gprs_13.decode(toBeDecode[i]['内容'])
+        console.log(result)
         if (result) {
-            toBeDecode[i]['终端位置时间'] = result['终端位置时间']
-            toBeDecode[i]['导航'] = result['bit(7) 导航']
-            toBeDecode[i]['经度'] = result['经度']
-            toBeDecode[i]['纬度'] = result['纬度']
-            toBeDecode[i]['详细位置'] = result['详细位置']
+            toBeDecode[i]['终端位置时间'] = result.data['位置信息']['终端位置时间']
+            toBeDecode[i]['导航'] = result.data['状态1']['bit(7) 导航']
+            toBeDecode[i]['经度'] = result.data['位置信息']['经度']
+            toBeDecode[i]['纬度'] = result.data['位置信息']['纬度']
+            toBeDecode[i]['详细地址'] = result.data['位置信息']['详细地址']
         }
         console.log(toBeDecode[i])
         let rate = ((i + 1) / toBeDecode.length).toFixed(2) * 100

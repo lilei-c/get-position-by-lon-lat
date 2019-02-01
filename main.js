@@ -13,7 +13,7 @@ let mainWindow
 
 function createWindow() {
   // Create the browser window.
-  mainWindow = new BrowserWindow({ width: 1000, height: 700 })
+  mainWindow = new BrowserWindow({ width: 1000, height: 700, webPreferences: { nodeIntegration: true } })
   // Open the DevTools.
   mainWindow.webContents.openDevTools()
 
