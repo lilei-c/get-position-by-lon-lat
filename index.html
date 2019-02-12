@@ -5,10 +5,30 @@
   <meta charset="UTF-8">
   <title>原始数据检验助手</title>
   <link rel="stylesheet" href="./static/css/bulma.min.css">
+  <style type="text/css">
+    html,
+    body {
+      overflow: unset;
+    }
+
+    .left-menu {
+      width: 200px;
+      float: left;
+    }
+
+    .right-content {
+      width: calc(100% - 200px);
+      position: fixed;
+      margin-left: 200px;
+      top: 10px;
+      bottom: 0;
+      overflow: unset;
+    }
+  </style>
 </head>
 
 <body>
-  <div id="app" class="container">
+  <div id="app" class="container left-menu">
     <aside class="menu">
       <p class="menu-label">
         General
@@ -17,48 +37,23 @@
         <li><a>Dashboard</a></li>
         <li><a>Customers</a></li>
       </ul>
-      <p class="menu-label">
-        Administration
-      </p>
-      <ul class="menu-list">
-        <li><a>Team Settings</a></li>
-        <li>
-          <a class="is-active">Manage Your Team</a>
-          <ul>
-            <li><a>Members</a></li>
-            <li><a>Plugins</a></li>
-            <li><a>Add a member</a></li>
-          </ul>
-        </li>
-        <li><a>Invitations</a></li>
-        <li><a>Cloud Storage Environment Settings</a></li>
-        <li><a>Authentication</a></li>
-      </ul>
-      <p class="menu-label">
-        Transactions
-      </p>
-      <ul class="menu-list">
-        <li><a>Payments</a></li>
-        <li><a>Transfers</a></li>
-        <li><a>Balance</a></li>
-      </ul>
     </aside>
+    <ul id="myTab" class="nav nav-tabs">
+      <li class="active">
+        <a href="#trajectory-tab" data-toggle="tab">GPRS13原始数据解析(单个)</a>
+      </li>
+      <li>
+        <a href="#trajectory-batch-tab" data-toggle="tab">GPRS13轨迹数据解析(批量)</a>
+      </li>
+      <li>
+        <a href="#ttt" data-toggle="tab">经纬度解析</a>
+      </li>
+      <li class="dropdown">
+        <a href="#lonlat-tab" data-toggle="tab">经纬度解析(海量数据)(测试)</a>
+      </li>
+    </ul>
   </div>
-  <ul id="myTab" class="nav nav-tabs">
-    <li class="active">
-      <a href="#trajectory-tab" data-toggle="tab">GPRS13原始数据解析(单个)</a>
-    </li>
-    <li>
-      <a href="#trajectory-batch-tab" data-toggle="tab">GPRS13轨迹数据解析(批量)</a>
-    </li>
-    <li>
-      <a href="#ttt" data-toggle="tab">经纬度解析</a>
-    </li>
-    <li class="dropdown">
-      <a href="#lonlat-tab" data-toggle="tab">经纬度解析(海量数据)(测试)</a>
-    </li>
-  </ul>
-  <webview src="view/gprs13/single.html" nodeintegration allowpopups></webview>
+  <webview class="right-content" src="view/gprs13/single.html" nodeintegration></webview>
 </body>
 <script src="static/vue.min.js"></script>
 
