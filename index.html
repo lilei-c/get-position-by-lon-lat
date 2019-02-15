@@ -12,48 +12,40 @@
     }
 
     .left-menu {
-      width: 200px;
-      float: left;
+      width: 220px;
+      height: 100%;
+      background-color: #e8e8e8;
+      position: fixed;
+      overflow: auto;
+      padding: 0 .6rem;
     }
 
     .right-content {
-      width: calc(100% - 200px);
+      width: calc(100% - 220px);
       position: fixed;
-      margin-left: 200px;
-      top: 10px;
-      bottom: 0;
+      margin-left: 220px;
+      height: 100%;
       overflow: unset;
     }
   </style>
 </head>
 
 <body>
-  <div id="app" class="container left-menu">
-    <aside class="menu">
-      <p class="menu-label">
-        General
-      </p>
-      <ul class="menu-list">
-        <li><a>Dashboard</a></li>
-        <li><a>Customers</a></li>
-      </ul>
-    </aside>
-    <ul id="myTab" class="nav nav-tabs">
-      <li class="active">
-        <a href="#trajectory-tab" data-toggle="tab">GPRS13原始数据解析(单个)</a>
-      </li>
-      <li>
-        <a href="#trajectory-batch-tab" data-toggle="tab">GPRS13轨迹数据解析(批量)</a>
-      </li>
-      <li>
-        <a href="#ttt" data-toggle="tab">经纬度解析</a>
-      </li>
-      <li class="dropdown">
-        <a href="#lonlat-tab" data-toggle="tab">经纬度解析(海量数据)(测试)</a>
-      </li>
-    </ul>
+  <div id="app">
+    <div class="left-menu">
+      <aside v-for="menu in menus" class="menu" style="margin:1rem 0">
+        <p class="menu-label">
+          {{menu.name}}
+        </p>
+        <ul class="menu-list">
+          <li v-for="menu2 in menu.data" @click="goto(menu2.url)">
+            <a :class="{ 'is-active': (src==menu2.url) }">{{menu2.name}}</a>
+          </li>
+        </ul>
+      </aside>
+    </div>
+    <webview id="foo" class="right-content" :src="src" nodeintegration></webview>
   </div>
-  <webview class="right-content" src="view/gprs13/single.html" nodeintegration></webview>
 </body>
 <script src="static/vue.min.js"></script>
 
@@ -61,30 +53,50 @@
   new Vue({
     el: '#app',
     data: {
-      loading: false
-      , gprs13OriginData: '5A4C280000018E015A0120903614020012011B295802080019FB9A001EC8CD1C17051E6D0D'
-      , gprs13Result: []
+      src: '',
+      menus: [
+        {
+          name: 'gprs13', data: [
+            { name: '原始数据解析(单个)', url: 'view/gprs13/single.html' },
+            { name: '轨迹数据解析(批量)', url: 'view/gprs13/batch.html' }
+          ]
+        }, {
+          name: '经纬度解析', data: [
+            { name: '经纬度解析', url: 'ttt' },
+            { name: '经纬度解析(海量数据)(测试)', url: 'lonlat-tab' }
+          ]
+        }
+      ]
     },
     methods: {
-      trajectory_btn_click: async function () {
-        this.gprs13Result = []
-        let data = this.gprs13OriginData.replace(/\s/g, '')
-        if (!data || data.length < 38)
-          return alert('数据无效')
-        loading = true
-        let result = await zl_gprs_13.decode(data)
-        if (!result)
-          return alert('解析失败')
-        console.log(result)
-
-        this.gprs13Result = arrayFy(result.data)
-
-        console.log(this.gprs13Result)
-        loading = false
+      goto: async function (url) {
+        this.src = url
+        localStorage.setItem('lastMenu', url)
       }
+    }, created: function () {
+      if (localStorage.getItem('lastMenu'))
+        this.src = localStorage.getItem('lastMenu')
+      else
+        this.src = this.menus[0].data[0].url
     }
   })
 
+  //
+  const webview = document.querySelector('webview')
+  webview.addEventListener('dom-ready', () => {
+    console.log(12)
+    webview.openDevTools()
+  })
+
+  // 打印内存占用情况
+  setInterval(() => {
+    let memory = process.memoryUsage()
+    let info = `原始数据检验助手 内存(MB) 
+    rss=${(memory.rss / 1048576).toFixed(2)} 
+    heapTotal=${(memory.heapTotal / 1048576).toFixed(2)} 
+    heapUsed=${(memory.heapUsed / 1048576).toFixed(2)} `
+    document.title = info
+  }, 2000)
 </script>
 
 </html>
