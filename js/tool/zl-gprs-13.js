@@ -1,7 +1,5 @@
 const R = require('ramda')
-
 const geo = require('./inverse-geo-coding')
-
 require('./ex')
 
 module.exports = {
