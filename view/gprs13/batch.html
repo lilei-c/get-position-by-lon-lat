@@ -22,8 +22,28 @@
         <p style="margin:1em 0 0 4px">只解析17 18 上来的位置信息</p>
       </div>
       <p style="margin-top: 1em;" class="trajectory-batch-rate">解析开始, 进度:</p>
-      <progress class="progress is-primary" value="35" max="100"></progress>
+      <progress class="progress is-primary" :value="rate" max="100"></progress>
       <p style="margin-top: 1em;">{{result}}</p>
+      <table class="table is-hoverable">
+        <thead>
+          <tr>
+            <th v-for="item in listHeader">{{item}}</th>
+          </tr>
+        </thead>
+        <tfoot>
+          <tr>
+            <th v-for="item in listHeader">{{item}}</th>
+          </tr>
+        </tfoot>
+        <tbody>
+          <tr v-for="item in list">
+            <td v-for="obj in item.value">
+              <div v-if="obj.value.length<=20">{{obj.value}}</div>
+              <div v-else :title="obj.value">{{obj.value.slice(0,7)+'...'}}</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </body>
@@ -31,16 +51,31 @@
 
 <script>
 
+  function arrayFy(obj) {
+    let arr = []
+    Object.keys(obj).forEach(m => {
+      let key = m
+      let value = obj[m]
+      if (typeof value == 'object')
+        value = arrayFy(value)
+      arr.push({ key: key, value: value })
+    })
+    return arr
+  }
+
   function allowDrop(ev) {
     ev.preventDefault();
   }
 
-  const zl_gprs_13 = require('../../js/tool/zl-gprs-13')
+  const zl_gprs_13 = require('./zl-gprs-13')
 
-  new Vue({
+  let app = new Vue({
     el: '#app',
     data: {
       result: '',
+      listHeader: [],
+      list: [],
+      rate: 0,
       loading: false
     },
     methods: {
@@ -62,6 +97,8 @@
       }
     }
   })
+
+  console.log(app)
 
   const iexcel = require('../../js/tool/excelHelper')
 
@@ -114,7 +151,7 @@
         toBeDecode[i]['详细地址'] = result.data['位置信息']['详细地址']
       }
       console.log(toBeDecode[i])
-      let rate = ((i + 1) / toBeDecode.length).toFixed(2) * 100
+      app.rate = ((i + 1) / toBeDecode.length).toFixed(2) * 100
     }
 
     //保存文件名
@@ -123,9 +160,13 @@
     excelNameArr[excelNameArr.length - 2] += '_解析结果'
     let savePath = excelNameArr.join('.')
     console.log(toBeDecode)
+
+    app.listHeader = Object.keys(toBeDecode[0])
+    app.list = arrayFy(toBeDecode)
+
     iexcel.saveJsonAsExcel(toBeDecode, savePath)
 
-    // result ='解析完成, 文件保存位置:'+savePath
+    app.result = '解析完成, 文件保存位置:' + savePath
 
     document.getElementById('trajectory-batch').ondrop = drop
   }

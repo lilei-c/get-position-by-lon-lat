@@ -1,6 +1,6 @@
 const R = require('ramda')
-const geo = require('./inverse-geo-coding')
-require('./ex')
+const geo = require('../../js/tool/inverse-geo-coding')
+require('../../js/tool/ex')
 
 module.exports = {
     decode: async function (data) {
