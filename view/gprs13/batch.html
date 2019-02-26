@@ -36,10 +36,10 @@
           </tr>
         </tfoot>
         <tbody>
-          <tr v-for="item in list">
-            <td v-for="obj in item.value">
-              <div v-if="obj.value.length<=20">{{obj.value}}</div>
-              <div v-else :title="obj.value">{{obj.value.slice(0,7)+'...'}}</div>
+          <tr v-for="(val,key) in list">
+            <td v-for="(val2,key2) in val">
+              <div v-if="val2.length<=20">{{val2}}</div>
+              <div v-else :title="val2">{{val2.slice(0,7)+'...'}}</div>
             </td>
           </tr>
         </tbody>
@@ -50,19 +50,6 @@
 <script src="../../static/vue.min.js"></script>
 
 <script>
-
-  function arrayFy(obj) {
-    let arr = []
-    Object.keys(obj).forEach(m => {
-      let key = m
-      let value = obj[m]
-      if (typeof value == 'object')
-        value = arrayFy(value)
-      arr.push({ key: key, value: value })
-    })
-    return arr
-  }
-
   function allowDrop(ev) {
     ev.preventDefault();
   }
@@ -74,26 +61,12 @@
     data: {
       result: '',
       listHeader: [],
-      list: [],
+      list: {},
       rate: 0,
       loading: false
     },
     methods: {
       trajectory_btn_click: async function () {
-        this.gprs13Result = []
-        let data = this.gprs13OriginData.replace(/\s/g, '')
-        if (!data || data.length < 38)
-          return alert('数据无效')
-        this.loading = true
-        let result = await zl_gprs_13.decode(data)
-        if (!result)
-          return alert('解析失败')
-        console.log(result)
-
-        this.gprs13Result = arrayFy(result.data)
-
-        console.log(this.gprs13Result)
-        this.loading = false
       }
     }
   })
@@ -162,7 +135,7 @@
     console.log(toBeDecode)
 
     app.listHeader = Object.keys(toBeDecode[0])
-    app.list = arrayFy(toBeDecode)
+    app.list = toBeDecode
 
     iexcel.saveJsonAsExcel(toBeDecode, savePath)
 

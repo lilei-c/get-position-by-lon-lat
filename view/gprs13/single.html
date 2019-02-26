@@ -21,16 +21,16 @@
     <textarea v-model="gprs13OriginData" class="textarea" rows="3" placeholder="输入GPRS13原始数据"></textarea>
     <a class="button is-info" @click="getResult" style="margin-top: 1em;">解析</a>
     <img v-if=loading src="../../static/loading.gif" />
-    <div class="card" v-for="item in gprs13Result">
+    <div class="card" v-for="(val,key) in gprs13Result">
       <div class="card-header">
-        <p class="card-header-title">{{item.key}}</p>
+        <p class="card-header-title">{{key}}</p>
       </div>
       <div class="card-content">
         <ul class="lh-20">
-          <li v-for="item2 in item.value">
-            <span style="color: #337ab7;">{{item2.key}}</span>
-            <span v-if="item2.value=='报警'" style="color:red;">{{item2.value}}</span>
-            <span v-else>{{item2.value}}</span></li>
+          <li v-for="(val2,key2) in val">
+            <span style="color: #337ab7;">{{key2}}</span>
+            <span v-if="val2=='报警'" style="color:red;">{{val2}}</span>
+            <span v-else>{{val2}}</span></li>
         </ul>
       </div>
     </div>
@@ -51,24 +51,12 @@
   //单个解析
   const zl_gprs_13 = require('./zl-gprs-13.js')
 
-  function arrayFy(obj) {
-    let arr = []
-    Object.keys(obj).forEach(m => {
-      let key = m
-      let value = obj[m]
-      if (typeof value == 'object')
-        value = arrayFy(value)
-      arr.push({ key: key, value: value })
-    })
-    return arr
-  }
-
   new Vue({
     el: '#app',
     data: {
       loading: false
       , gprs13OriginData: '5A4C1800000046015A012090361402002ED20209020E02200A2043762D302900B3DCA041000000335B760019FBD000000000001222353146412C32464245228A0D'
-      , gprs13Result: []
+      , gprs13Result: {}
     },
     methods: {
       getResult: async function () {
@@ -82,7 +70,7 @@
           return alert('解析失败')
         console.log(result)
 
-        this.gprs13Result = arrayFy(result.data)
+        this.gprs13Result = result.data
 
         console.log(this.gprs13Result)
         this.loading = false
